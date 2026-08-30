@@ -1,0 +1,19 @@
+{
+  "anchor_version": "vcc2026-valA-r4+vcc2026-valB-r4+vcc2026-valC-r4",
+  "entry_id": "4gqHnJ61sXnaMRRcLPTc",
+  "error_info": null,
+  "is_final": false,
+  "model_name": "Winwinwin Bayesian public-prior baseline v0",
+  "panel_id": "vcc2026-val-1",
+  "partition": "val",
+  "published_date": "2026-08-26",
+  "rank_at_publication": 173,
+  "score_avg": -0.020587639341217333,
+  "score_fid": -0.11212822275427158,
+  "score_jac": -0.04886854710859345,
+  "score_mse": 0.0,
+  "score_nmae": -0.012492210789393074,
+  "score_pds": -0.000022441888027582818,
+  "score_reach": 0.049985586492981675,
+  "status": "published"
+}

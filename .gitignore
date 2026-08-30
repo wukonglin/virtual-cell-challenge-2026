@@ -1,0 +1,63 @@
+# Secrets and local configuration
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*credentials*
+*secrets*
+*token*
+
+# Python and editor state
+.venv*/
+venv*/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.idea/
+.vscode/
+.DS_Store
+
+# Challenge data and third-party working copies
+dataset/*
+!dataset/README.md
+external/
+Pengpeng/
+
+# Generated model and submission artifacts
+artifacts/*
+!artifacts/.gitkeep
+logs/*
+!logs/.gitkeep
+outputs/
+*.h5
+*.h5ad
+*.hdf5
+*.loom
+*.npz
+*.npy
+*.pt
+*.pth
+*.ckpt
+*.vcc
+*.zip
+*.tar
+*.tar.gz
+*.zst
+
+# Generated presentation previews
+presentation/preview/
+
+# Local bilingual and Chinese-only research notes are intentionally excluded
+/VCC_2026_bilingual_deep_dive.md
+/reports/
+
+# Scheduler and runtime spill files
+slurm-*.out
+core.*
+*.tmp
+*.part

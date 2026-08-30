@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+#SBATCH --job-name=vcc-pack-v0
+#SBATCH --account=allaccess
+#SBATCH --partition=full
+#SBATCH --qos=high
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=192G
+#SBATCH --time=04:00:00
+#SBATCH --output=logs/cpu_generate_package_v0_%j.out
+#SBATCH --error=logs/cpu_generate_package_v0_%j.err
+
+set -euo pipefail
+
+readonly PROJECT_DIR="${VCC_PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$(pwd)}}"
+readonly PYTHON_BIN="${VCC_MODEL_PYTHON:-$(command -v python3)}"
+readonly VCC_BIN="${VCC_CLI:-$PROJECT_DIR/.venv-vcc/bin/vcc}"
+readonly VCC_PY="${VCC_CLI_PYTHON:-$PROJECT_DIR/.venv-vcc/bin/python}"
+readonly PRIOR_NPZ="$PROJECT_DIR/artifacts/bayesian_prior_h100_v0.npz"
+readonly PRIOR_JSON="$PROJECT_DIR/artifacts/bayesian_prior_h100_v0.json"
+readonly PRED_H5AD="$PROJECT_DIR/artifacts/bayesian_baseline_v0.h5ad"
+readonly PRED_JSON="$PROJECT_DIR/artifacts/bayesian_baseline_v0.json"
+readonly DRYRUN_JSON="$PROJECT_DIR/artifacts/bayesian_baseline_v0_dryrun.json"
+readonly VCC_FILE="$PROJECT_DIR/artifacts/bayesian_baseline_v0.vcc"
+readonly PREP_JSON="$PROJECT_DIR/artifacts/bayesian_baseline_v0_prep.json"
+
+cd "$PROJECT_DIR"
+export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-16}"
+export MKL_NUM_THREADS="${SLURM_CPUS_PER_TASK:-16}"
+export PYTHONUNBUFFERED=1
+
+task_tmp="$(mktemp -d /tmp/vcc_pack_v0_XXXXXX)"
+readonly task_tmp
+export TMPDIR="$task_tmp"
+trap 'rm -rf -- "$task_tmp"' EXIT
+
+for required_path in \
+  "$PYTHON_BIN" "$VCC_BIN" "$VCC_PY" "$PRIOR_NPZ" "$PRIOR_JSON" \
+  dataset/controls/context_A.h5ad \
+  dataset/controls/context_B.h5ad \
+  dataset/controls/context_C.h5ad \
+  dataset/controls/gene_names.csv \
+  dataset/controls/pert_counts.csv; do
+  if [[ ! -r "$required_path" ]]; then
+    echo "Missing required input: $required_path" >&2
+    exit 2
+  fi
+done
+
+for protected_output in \
+  "$PRED_H5AD" "$PRED_JSON" "$DRYRUN_JSON" "$VCC_FILE" "$PREP_JSON"; do
+  if [[ -e "$protected_output" ]]; then
+    echo "Refusing to overwrite existing production artifact: $protected_output" >&2
+    exit 3
+  fi
+done
+
+date --iso-8601=seconds
+hostname
+echo "SLURM_JOB_ID=${SLURM_JOB_ID:-unknown}"
+df -h "$PROJECT_DIR" /tmp
+tmp_available_bytes="$(df -PB1 /tmp | awk 'NR==2 {print $4}')"
+readonly tmp_available_bytes
+if [[ "$tmp_available_bytes" -lt 53687091200 ]]; then
+  echo "Need at least 50 GiB free in /tmp for VCC packaging" >&2
+  exit 4
+fi
+
+"$PYTHON_BIN" scripts/generate_bayesian_submission.py \
+  --prior "$PRIOR_NPZ" \
+  --controls-dir dataset/controls \
+  --output-h5ad "$PRED_H5AD" \
+  --output-json "$PRED_JSON" \
+  --cells-per-group 400 \
+  --max-base-genes 5780 \
+  --compression lzf \
+  --seed 20260826
+
+"$PYTHON_BIN" - "$PRED_JSON" <<'PY'
+import json, sys
+report = json.load(open(sys.argv[1]))
+assert report["full_official_contract"] is True
+assert report["validation"]["failed_checks"] == []
+assert report["validation"]["shape"] == [360000, 18533]
+assert report["validation"]["groups"] == 900
+assert report["validation"]["nnz"] < 2_140_000_000
+assert report["scientific_qc"]["all_groups_have_realized_delta"] is True
+assert report["scientific_qc"]["target_knockdown_failures"] == []
+for context in "ABC":
+    cap = report["context_statistics"][context]["sparsity_cap_qc"]
+    assert cap["pseudobulk_cosine"] >= 0.995
+    assert cap["pseudobulk_l1_fraction"] <= 0.06
+print("Generator assertions passed")
+PY
+
+"$VCC_BIN" prep "$PRED_H5AD" \
+  -g dataset/controls/gene_names.csv \
+  --perts dataset/controls/pert_counts.csv \
+  --pert-col target_gene \
+  --context-col context \
+  --contexts A,B,C \
+  --verify-targets \
+  --check-cell-counts \
+  --require-counts \
+  --reject-controls \
+  --encoding 32 \
+  --dry-run \
+  --json | tee "$DRYRUN_JSON"
+
+"$VCC_PY" - "$DRYRUN_JSON" <<'PY'
+import json, sys
+report = json.load(open(sys.argv[1]))
+assert report["dry_run"] is True
+assert report["n_cells"] == 360000
+assert report["n_genes"] == 18533
+assert report["normalization"] == "counts-preserved"
+assert report["verified_targets"] is True
+assert report["cells_per_context"] == {"A": 120000, "B": 120000, "C": 120000}
+assert report["nnz"] is not None and report["nnz"] < 2_140_000_000
+print("Official dry-run assertions passed")
+PY
+
+"$VCC_BIN" prep "$PRED_H5AD" \
+  -g dataset/controls/gene_names.csv \
+  --perts dataset/controls/pert_counts.csv \
+  --pert-col target_gene \
+  --context-col context \
+  --contexts A,B,C \
+  --verify-targets \
+  --check-cell-counts \
+  --require-counts \
+  --reject-controls \
+  --encoding 32 \
+  --output "$VCC_FILE" \
+  --json | tee "$PREP_JSON"
+
+"$VCC_PY" - "$PREP_JSON" <<'PY'
+import json, sys
+report = json.load(open(sys.argv[1]))
+assert report["dry_run"] is False
+assert report["n_cells"] == 360000
+assert report["n_genes"] == 18533
+assert report["normalization"] == "counts-preserved"
+assert report["verified_targets"] is True
+assert report["cells_per_context"] == {"A": 120000, "B": 120000, "C": 120000}
+assert report["nnz"] is not None and report["nnz"] < 2_140_000_000
+print("Official package assertions passed")
+PY
+
+"$VCC_PY" -c 'import sys; from vcc.vccfile import validate_vcc; validate_vcc(sys.argv[1]); print("container_valid")' "$VCC_FILE"
+tar -tf "$VCC_FILE"
+
+sha256sum \
+  "$PRIOR_NPZ" "$PRIOR_JSON" "$PRED_H5AD" "$PRED_JSON" \
+  "$DRYRUN_JSON" "$VCC_FILE" "$PREP_JSON" \
+  dataset/controls/context_A.h5ad \
+  dataset/controls/context_B.h5ad \
+  dataset/controls/context_C.h5ad \
+  dataset/controls/gene_names.csv \
+  dataset/controls/pert_counts.csv \
+  scripts/generate_bayesian_submission.py \
+  | tee artifacts/bayesian_baseline_v0_SHA256SUMS
+
+date --iso-8601=seconds
