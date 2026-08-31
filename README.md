@@ -100,6 +100,45 @@ panel and anchor set, but it remains below the official context-mean baseline
 of zero. The receipt and component-level diagnosis are recorded in
 [the baseline report](docs/BASELINE_RESULTS.md).
 
+## Current cross-context candidate
+
+The next candidate is deliberately modular and has not yet been submitted. It
+addresses the failed STATE adapter's three main errors: a missing shared
+perturbation response, weak target discrimination, and a count emitter that
+could not activate source-zero genes.
+
+1. A K562 genome-wide CRISPRi atlas supplies same-target response evidence for
+   267 of the 300 validation targets after a 30-cell reliability filter.
+2. A K562-essential to RPE1 residual ridge route transfers target-specific
+   response geometry while leaving the shared expression surface unchanged.
+3. Whole-ESM2-cluster holdout selects route and amplitude hyperparameters.
+   The corrected internal six-member proxy is `0.215398`, compared with
+   `0.095302` for the no-route control in the same split. These are local proxy
+   values, not leaderboard scores.
+4. Direct and fallback effects are merged per target-gene coordinate. Missing
+   K562 genes retain a full-axis fallback instead of being silently zeroed.
+5. The scorer-aware generator keeps target forcing off, does not redistribute
+   target counts, preserves a model-derived absolute pseudobulk mean, and emits
+   independent sparse integer expectations with deterministic stochastic
+   rounding.
+
+The corrected full-axis effect prior is
+`41e910252fdfcdabd6193274c86dfd0582f3388c70acd7c833df1626235bbe14`;
+the derived context pseudobulk is
+`b892bf83d6e26f1d86781a4385cf7389ad8f344308cc16c319da1afb741b887c`.
+A CPU structural smoke passed with no failed checks. Full H100 generation,
+official packaging, and any submission remain separate promotion gates.
+
+The downloaded Feng multi-iPSC atlas adds 850,726 normalized-log1p cells,
+6,699 perturbations, and 182 direct validation-target overlaps for future
+representation training. It has no raw-count layer and is therefore excluded
+from count-emitter training. A separate GEO Jurkat file adds 262,956 raw-count
+cells, 2,394 target labels, and 12,013 controls for held-context and dispersion
+training, although it has no direct validation-target overlap. See
+[data provenance](docs/DATA_PROVENANCE.md) and the
+[model-v2 research review](docs/RESEARCH_AND_MODEL_V2.md) for the complete
+split, license, and flow-matching analysis.
+
 ## Repository layout
 
 ```text

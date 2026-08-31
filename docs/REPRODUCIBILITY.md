@@ -34,6 +34,16 @@ dataset/
       jurkat.h5
       hepg2.h5
       ESM2_pert_features.pt
+  raw/
+    replogle_2022/
+      K562_gwps_raw_bulk_01.h5ad
+      K562_essential_raw_bulk_01.h5ad
+      rpe1_raw_bulk_01.h5ad
+    replogle_nadig/
+      GSE264667_hepg2_raw_singlecell_01.h5ad
+      GSE264667_jurkat_raw_singlecell_01.h5ad
+    feng2026/
+      feng24_preprocessed.h5ad
 ```
 
 Download the controls with the authenticated VCC CLI. Only use public or proprietary support data that the team has the legal right to use.
@@ -286,6 +296,139 @@ all 456 challenge-only gene counts, and all target-knockdown gates passed. The
 official dry run and package validation also passed. Submission entry
 `JbDxq7SJV2wI0DWlIREn` was published on the validation panel; its complete
 sanitized receipt is tracked in `results/state_direct_v0/submission.json`.
+
+## Cross-context scorer-aware candidate
+
+The replacement candidate separates the shared perturbation response from the
+target residual. Build the corrected K562-to-RPE1 route with complete ESM2
+cluster holdout and a full-axis fallback:
+
+```bash
+.venv-state/bin/python scripts/calibrate_cross_context_effects.py \
+  artifacts/v2/k562_gwps_effect_atlas.npz \
+  artifacts/v2/k562_essential_effect_atlas.npz \
+  artifacts/v2/rpe1_effect_atlas.npz \
+  artifacts/bayesian_prior_h100_v0.npz \
+  dataset/controls/pert_counts.csv \
+  artifacts/v2/cross_context_effect_prior_v3.npz \
+  artifacts/v2/cross_context_effect_route_v3.npz \
+  artifacts/v2/cross_context_effect_prior_v3.json \
+  --challenge-genes dataset/controls/gene_names.csv \
+  --esm2-embeddings dataset/state_support/extracted/ESM2_pert_features.pt
+```
+
+The selected ridge, target-residual, and route scales are `0.01`, `1.0`, and
+`1.0`. The held-cluster internal proxy is `0.215397588`. The calibrator fits
+every common response and projection inside the training fold. It merges
+direct and fallback information at target-gene resolution and applies
+cell-count reliability only to measured coordinates. Do not reuse v1 or v2
+artifacts produced before these leakage and axis-alignment fixes.
+
+Convert the full-axis response into a model-derived expected-count pseudobulk:
+
+```bash
+.venv-state/bin/python scripts/build_context_pseudobulk_prior.py \
+  artifacts/v2/cross_context_effect_prior_v3.npz \
+  dataset/controls \
+  dataset/controls/pert_counts.csv \
+  artifacts/v2/cross_context_pseudobulk_v3.npz \
+  artifacts/v2/cross_context_pseudobulk_v3.json \
+  --effect-clip 1.0
+```
+
+The pseudobulk contract is `3 x 300 x 18,533`, contains expected raw counts per
+cell, preserves each context's mean control depth, and records that no measured
+perturbed profile was inserted. Its SHA256 is
+`b892bf83d6e26f1d86781a4385cf7389ad8f344308cc16c319da1afb741b887c`.
+
+Run a minimal CPU structure smoke before allocating a GPU:
+
+```bash
+.venv-state/bin/python scripts/generate_state_scorer_aware_counts.py \
+  --model-dir artifacts/state_runs/state_sm_20k_v0 \
+  --checkpoint checkpoints/selected.ckpt \
+  --selection-json artifacts/state_runs/state_sm_20k_v0/checkpoints/selected_checkpoint.json \
+  --controls-dir dataset/controls \
+  --support-genes dataset/state_support/extracted/gene_names.csv \
+  --output-h5ad artifacts/v2/cross_context_state_v3_smoke.h5ad \
+  --output-json artifacts/v2/cross_context_state_v3_smoke.json \
+  --device cpu --model-chunk-size 2 --cells-per-group 2 --target-limit 1 \
+  --state-effect-weight 0.05 --state-effect-clip 0.30 \
+  --response-npz artifacts/v2/cross_context_pseudobulk_v3.npz \
+  --common-response-weight 1.0 --learned-response-weight 1.0 \
+  --pseudobulk-npz artifacts/v2/cross_context_pseudobulk_v3.npz \
+  --pseudobulk-blend-weight 0.60 --zero-induction-scale 1.0 \
+  --pseudobulk-depth-policy source-library --target-policy off \
+  --count-emission stochastic-round --combined-effect-clip 1.0 \
+  --groups-per-shard 3
+```
+
+The smoke produces six cells over all 18,533 genes, with one target in each
+context. It verifies finite non-negative integer counts, sparse structure,
+context labels, and response provenance; it is not a full official contract.
+
+After all unit tests pass, generate and package the 360,000-cell artifact with
+an explicit dependency:
+
+```bash
+cross_context_job=$(sbatch --parsable \
+  slurm/h100_generate_cross_context_v2.sbatch)
+
+sbatch --dependency="afterok:$cross_context_job" \
+  slurm/cpu_package_cross_context_v2.sbatch
+```
+
+By default, the H100 wrapper consumes the corrected v3 pseudobulk. It accepts
+only the explicitly versioned `v3` and `v4` candidates, uses target policy
+`off`, and refuses to overwrite an existing production artifact. The CPU job
+rechecks the generation manifest and SHA256 before running official VCC dry-run,
+package, and container validation. Neither successful local proxy metrics nor
+the CPU smoke authorizes a submission by itself.
+
+An additional one-H100 job trains an ESM2-conditioned K562 signature candidate:
+
+```bash
+signature_job=$(sbatch --parsable \
+  slurm/h100_train_k562_signature_v2.sbatch)
+```
+
+Its output is not automatically used by the v3 production path. It must first
+pass whole-cluster validation and be overlaid onto the full-axis fallback by an
+audited coordinate-aligned rebuild; the derived route and pseudobulk must then
+receive new versioned hashes. The complete v4 dependency chain is:
+
+```bash
+prior_v4_job=$(sbatch --parsable \
+  --dependency="afterok:$signature_job" \
+  slurm/cpu_build_cross_context_prior_v4.sbatch)
+
+generation_v4_job=$(sbatch --parsable \
+  --dependency="afterok:$prior_v4_job" \
+  --export=ALL,VCC_CANDIDATE_VERSION=v4 \
+  slurm/h100_generate_cross_context_v2.sbatch)
+
+sbatch \
+  --dependency="afterok:$generation_v4_job" \
+  --export=ALL,VCC_CANDIDATE_VERSION=v4 \
+  slurm/cpu_package_cross_context_v2.sbatch
+```
+
+The v4 builder treats modeled zero effects as authoritative inside the
+signature's named target-gene mask and proves that every other fallback value
+is byte-identical. The generator and package wrappers accept only candidate
+versions `v3` or `v4`, preventing an arbitrary environment value from changing
+the production paths.
+
+Build the raw HepG2 and Jurkat response atlases as independent research jobs:
+
+```bash
+sbatch slurm/h100_build_hepg2_raw_effect_atlas_v1.sbatch
+sbatch slurm/h100_build_jurkat_raw_effect_atlas_v1.sbatch
+```
+
+These jobs may run concurrently. Their outputs are not automatically included
+in v3 or v4; a future control-conditioned multi-route candidate must receive a
+new version, held-context validation, and an independent pseudobulk hash.
 
 ## HepG2 zero-shot proxy
 
