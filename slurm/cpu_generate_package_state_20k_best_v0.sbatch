@@ -71,6 +71,36 @@ if [[ "$tmp_available_bytes" -lt 53687091200 ]]; then
   exit 4
 fi
 
+"$VCC_PY" - "$PRIOR_JSON" "$PROJECT_DIR" <<'PY'
+import json
+import pathlib
+import sys
+
+report = json.load(open(sys.argv[1]))
+project_dir = pathlib.Path(sys.argv[2]).resolve()
+configuration = report["configuration"]
+model = report["model"]
+provenance = report["provenance"]
+
+assert configuration["effect_reference"] == "model-control"
+assert configuration["precision"] == "float32"
+assert configuration["sets_per_context"] == 4
+assert configuration["cells_per_context"] == 512
+assert configuration["top_k_including_target"] == 161
+assert model["cell_sentence_len"] == 128
+assert model["input_dim"] == 18080
+assert model["output_dim"] == 18080
+assert model["pert_dim"] == 5120
+assert model["parameters"] > 150_000_000
+assert pathlib.Path(provenance["checkpoint"]["path"]).name == "best.ckpt"
+assert provenance["repository_commit"] is not None
+assert provenance["state_source_commit"] is not None
+assert pathlib.Path(provenance["output_npz"]["path"]).resolve() == pathlib.Path(
+    project_dir / "artifacts/state_effect_prior_20k_best_v0.npz"
+)
+print("STATE inference provenance assertions passed")
+PY
+
 "$VCC_PY" scripts/qc_effect_priors.py \
   "$PRIOR_NPZ" "$BAYES_NPZ" \
   --controls-dir dataset/controls \
