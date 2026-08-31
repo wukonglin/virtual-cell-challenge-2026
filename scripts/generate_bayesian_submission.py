@@ -30,6 +30,7 @@ from scipy import sparse
 CONTEXTS = ("A", "B", "C")
 MAX_OFFICIAL_NNZ = 4_750_000_000
 SAFE_INT32_NNZ = 2_140_000_000
+STATE_EFFECT_SPACE = "log1p-target-sum-normalized-arithmetic-pseudobulk-delta"
 
 
 def parse_args() -> argparse.Namespace:
@@ -56,6 +57,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-base-genes", type=int, default=5_780)
     parser.add_argument("--response-sigma", type=float, default=0.15)
     parser.add_argument("--upreg-control-smoothing", type=float, default=0.10)
+    parser.add_argument(
+        "--effect-baseline-target-sum",
+        type=float,
+        default=10_000.0,
+        help=(
+            "Target sum used to interpret log1p-space prior effects. Keep 10000 "
+            "for the Bayesian CP10K prior; use 50000 for VCC-aligned STATE effects."
+        ),
+    )
     parser.add_argument("--minimum-fold", type=float, default=0.55)
     parser.add_argument("--maximum-fold", type=float, default=1.82)
     parser.add_argument("--target-remaining-fraction", type=float, default=0.20)
@@ -194,27 +204,39 @@ def cap_control_sparsity(
 
 def effect_to_fold(
     effect: np.ndarray,
-    baseline_cp10k: np.ndarray,
+    baseline_effect_space: np.ndarray,
     selected: np.ndarray,
     target_index: int,
     args: argparse.Namespace,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, dict[str, float | int]]:
     genes = np.where(selected)[0]
-    baseline = baseline_cp10k[genes]
+    baseline = baseline_effect_space[genes]
     shifted = np.maximum(np.expm1(np.log1p(baseline) + effect[genes]), 0.0)
-    folds = (shifted + 1e-3) / (baseline + 1e-3)
-    folds = np.clip(folds, args.minimum_fold, args.maximum_fold)
+    raw_folds = (shifted + 1e-3) / (baseline + 1e-3)
+    folds = np.clip(raw_folds, args.minimum_fold, args.maximum_fold)
     target_position = np.where(genes == target_index)[0]
     if len(target_position) != 1:
         raise RuntimeError("target transcript is missing from selected effects")
+    off_target = np.ones(len(genes), dtype=bool)
+    off_target[target_position[0]] = False
+    low_clipped = int(np.count_nonzero(raw_folds[off_target] < args.minimum_fold))
+    high_clipped = int(np.count_nonzero(raw_folds[off_target] > args.maximum_fold))
+    off_target_count = int(np.count_nonzero(off_target))
     folds[target_position[0]] = args.target_remaining_fraction
-    return genes.astype(np.int32), folds.astype(np.float64)
+    return genes.astype(np.int32), folds.astype(np.float64), {
+        "off_target_effect_genes": off_target_count,
+        "off_target_fold_low_clipped": low_clipped,
+        "off_target_fold_high_clipped": high_clipped,
+        "off_target_fold_clipped_fraction": (
+            (low_clipped + high_clipped) / off_target_count if off_target_count else 0.0
+        ),
+    }
 
 
 def perturb_block(
     base: sparse.csr_matrix,
     effect: np.ndarray,
-    baseline_cp10k: np.ndarray,
+    baseline_effect_space: np.ndarray,
     baseline_probabilities: np.ndarray,
     target_index: int,
     rng: np.random.Generator,
@@ -224,8 +246,8 @@ def perturb_block(
     original_libraries = values.sum(axis=1, dtype=np.int64)
     selected = effect != 0
     selected[target_index] = True
-    genes, folds = effect_to_fold(
-        effect, baseline_cp10k, selected, target_index, args
+    genes, folds, fold_qc = effect_to_fold(
+        effect, baseline_effect_space, selected, target_index, args
     )
     selected_before = values[:, genes].copy()
     strength = rng.lognormal(
@@ -275,6 +297,7 @@ def perturb_block(
     target_before = selected_before[:, target_position]
     target_after = selected_after[:, target_position]
     return result, {
+        **fold_qc,
         "selected_effect_genes": int(len(genes)),
         "library_median_before": float(np.median(original_libraries)),
         "library_median_after": float(np.median(generated_libraries)),
@@ -361,6 +384,11 @@ def main() -> None:
             raise FileExistsError(f"{output} exists; pass --force to replace it")
     if args.max_base_genes <= 0:
         raise ValueError("--max-base-genes must be positive")
+    if (
+        not np.isfinite(args.effect_baseline_target_sum)
+        or args.effect_baseline_target_sum <= 0
+    ):
+        raise ValueError("--effect-baseline-target-sum must be positive and finite")
     if not 0 < args.target_remaining_fraction < 1:
         raise ValueError("--target-remaining-fraction must be in (0,1)")
 
@@ -370,6 +398,36 @@ def main() -> None:
     prior_targets = prior["targets"].astype(str).tolist()
     genes = prior["genes"].astype(str).tolist()
     effects = prior["effects"].astype(np.float32)
+    prior_effect_space = (
+        str(prior["effect_space"].item())
+        if "effect_space" in prior.files
+        else "legacy-log1p-cp10k-delta"
+    )
+    prior_effect_target_sum = (
+        float(prior["effect_target_sum"].item())
+        if "effect_target_sum" in prior.files
+        else None
+    )
+    if "effect_gene_mask" in prior.files:
+        raw_effect_gene_mask = np.asarray(prior["effect_gene_mask"])
+        if raw_effect_gene_mask.shape != (len(genes),):
+            raise ValueError("prior effect_gene_mask has the wrong shape")
+        if not np.isin(raw_effect_gene_mask, (False, True)).all():
+            raise ValueError("prior effect_gene_mask must be boolean-like")
+        effect_gene_mask = raw_effect_gene_mask.astype(np.bool_)
+    else:
+        effect_gene_mask = np.ones(len(genes), dtype=np.bool_)
+    if prior_effect_target_sum is not None and not np.isclose(
+        prior_effect_target_sum, args.effect_baseline_target_sum, rtol=0.0, atol=1e-8
+    ):
+        raise ValueError(
+            "prior effect_target_sum does not match --effect-baseline-target-sum: "
+            f"{prior_effect_target_sum} != {args.effect_baseline_target_sum}"
+        )
+    if prior_effect_target_sum is not None and prior_effect_space != STATE_EFFECT_SPACE:
+        raise ValueError(f"unsupported explicit prior effect space: {prior_effect_space}")
+    if prior_effect_target_sum is not None and "effect_gene_mask" not in prior.files:
+        raise ValueError("an explicit STATE prior must include effect_gene_mask")
     if prior_contexts != list(CONTEXTS):
         raise ValueError("prior context order mismatch")
     official_targets = pd.read_csv(args.controls_dir / "pert_counts.csv")[
@@ -384,6 +442,11 @@ def main() -> None:
         )
     if not np.isfinite(effects).all():
         raise ValueError("prior contains non-finite effects")
+    if prior_effect_target_sum is not None:
+        if int(np.count_nonzero(effect_gene_mask)) != 18_077:
+            raise ValueError("STATE effect_gene_mask must contain 18,077 shared genes")
+        if np.count_nonzero(effects[:, :, ~effect_gene_mask]):
+            raise ValueError("STATE prior assigns effects outside its normalization axis")
     effects_per_group = np.count_nonzero(effects, axis=2)
     max_prior_effects = int(effects_per_group.max())
     if max_prior_effects > 161:
@@ -441,10 +504,16 @@ def main() -> None:
                 raise RuntimeError(f"{context}: sparsity cap redistributes too many counts")
         raw_gene_sums = np.asarray(matrix.sum(axis=0)).ravel().astype(np.float64)
         total_counts = float(raw_gene_sums.sum())
+        effect_space_total_counts = float(raw_gene_sums[effect_gene_mask].sum())
+        if effect_space_total_counts <= 0:
+            raise RuntimeError(f"{context}: effect normalization axis has zero counts")
         baseline_probabilities = (raw_gene_sums + 0.5) / (
             total_counts + 0.5 * len(genes)
         )
-        baseline_cp10k = raw_gene_sums / total_counts * 10_000.0
+        baseline_effect_space = (
+            raw_gene_sums / effect_space_total_counts * args.effect_baseline_target_sum
+        )
+        baseline_effect_space[~effect_gene_mask] = 0.0
 
         target_blocks: list[sparse.csr_matrix] = []
         obs_parts: list[pd.DataFrame] = []
@@ -458,7 +527,7 @@ def main() -> None:
             block, qc = perturb_block(
                 base,
                 effects[c, p].copy(),
-                baseline_cp10k,
+                baseline_effect_space,
                 baseline_probabilities,
                 target_idx,
                 rng,
@@ -498,6 +567,9 @@ def main() -> None:
             "prediction_mean_nnz_per_cell": float(
                 context_matrix.nnz / context_matrix.shape[0]
             ),
+            "effect_normalization_count_fraction": float(
+                effect_space_total_counts / total_counts
+            ),
             "sparsity_cap_qc": cap_qc,
         }
         del target_blocks, context_matrix, capped, matrix, control
@@ -533,6 +605,9 @@ def main() -> None:
     changed_fraction = np.asarray([item["changed_cell_fraction"] for item in group_qc])
     direction_accuracy = np.asarray(
         [item["intended_direction_accuracy"] for item in group_qc]
+    )
+    fold_clipped_fraction = np.asarray(
+        [item["off_target_fold_clipped_fraction"] for item in group_qc]
     )
     target_qc_failures = [
         f"{item['context']}|{item['target_gene']}"
@@ -574,6 +649,10 @@ def main() -> None:
             str(q): float(np.quantile(direction_accuracy, q))
             for q in (0.0, 0.1, 0.5, 0.9, 1.0)
         },
+        "off_target_fold_clipped_fraction_quantiles": {
+            str(q): float(np.quantile(fold_clipped_fraction, q))
+            for q in (0.0, 0.1, 0.5, 0.9, 1.0)
+        },
     }
     if not scientific_qc["all_output_groups_nonzero"]:
         raise RuntimeError("one or more context-target groups are all zero")
@@ -604,11 +683,18 @@ def main() -> None:
         "full_official_contract": full_contract,
         "input_prior": str(args.prior),
         "input_prior_sha256": sha256_file(args.prior),
+        "input_prior_effect_space": prior_effect_space,
+        "input_prior_effect_target_sum": prior_effect_target_sum,
+        "input_prior_effect_normalization_genes": int(
+            np.count_nonzero(effect_gene_mask)
+        ),
         "generation": {
             "cells_per_group": args.cells_per_group,
             "max_base_genes": args.max_base_genes,
             "response_sigma": args.response_sigma,
             "upreg_control_smoothing": args.upreg_control_smoothing,
+            "effect_baseline_target_sum": args.effect_baseline_target_sum,
+            "effect_normalization_genes": int(np.count_nonzero(effect_gene_mask)),
             "non_target_fold_clip": [args.minimum_fold, args.maximum_fold],
             "target_remaining_fraction": args.target_remaining_fraction,
             "max_prior_effects_per_group": max_prior_effects,

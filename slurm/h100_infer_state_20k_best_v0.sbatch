@@ -61,6 +61,7 @@ nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv,nohead
   --precision float32 \
   --input-normalization log1p-raw \
   --effect-reference model-control \
+  --effect-bulk-target-sum 50000 \
   --sets-per-context 4 \
   --top-k 161 \
   --target-strategy blend \

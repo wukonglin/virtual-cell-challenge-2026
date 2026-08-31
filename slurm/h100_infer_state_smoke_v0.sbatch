@@ -10,16 +10,16 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=64G
 #SBATCH --time=02:00:00
-#SBATCH --output=logs/h100_state_infer_smoke_raw_v2_%j.out
-#SBATCH --error=logs/h100_state_infer_smoke_raw_v2_%j.err
+#SBATCH --output=logs/h100_state_infer_smoke_pseudobulk_v3_%j.out
+#SBATCH --error=logs/h100_state_infer_smoke_pseudobulk_v3_%j.err
 
 set -euo pipefail
 
 readonly PROJECT_DIR="${VCC_PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$(pwd)}}"
 readonly PYTHON_BIN="$PROJECT_DIR/.venv-state/bin/python"
 readonly MODEL_DIR="$PROJECT_DIR/artifacts/state_runs/state_sm_smoke_v0"
-readonly OUTPUT_NPZ="$PROJECT_DIR/artifacts/state_smoke_effect_prior_raw_float32_v2.npz"
-readonly OUTPUT_JSON="$PROJECT_DIR/artifacts/state_smoke_effect_prior_raw_float32_v2.json"
+readonly OUTPUT_NPZ="$PROJECT_DIR/artifacts/state_smoke_effect_prior_pseudobulk_v3.npz"
+readonly OUTPUT_JSON="$PROJECT_DIR/artifacts/state_smoke_effect_prior_pseudobulk_v3.json"
 
 cd "$PROJECT_DIR"
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
@@ -61,6 +61,7 @@ nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv,nohead
   --precision float32 \
   --input-normalization log1p-raw \
   --effect-reference model-control \
+  --effect-bulk-target-sum 50000 \
   --sets-per-context 1 \
   --top-k 161 \
   --target-strategy blend \

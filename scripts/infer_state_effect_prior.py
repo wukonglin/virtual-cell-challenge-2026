@@ -39,6 +39,7 @@ EXPECTED_OVERLAP_GENES = 18_077
 EXPECTED_CURRENT_ONLY_GENES = 456
 EXPECTED_TARGETS = 300
 EXPECTED_PERT_DIM = 5_120
+EFFECT_SPACE = "log1p-target-sum-normalized-arithmetic-pseudobulk-delta"
 
 
 def parse_args() -> argparse.Namespace:
@@ -131,6 +132,15 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Subtract STATE's non-targeting prediction to cancel reconstruction bias, "
             "or subtract the input basal mean directly."
+        ),
+    )
+    parser.add_argument(
+        "--effect-bulk-target-sum",
+        type=float,
+        default=50_000.0,
+        help=(
+            "Normalize STATE target and control pseudobulks to this total before "
+            "taking their log1p difference; 50000 matches VCC 2026 bulk metrics."
         ),
     )
     parser.add_argument(
@@ -430,6 +440,7 @@ def sparsify_effect(
     valid_support = support_to_current >= 0
     current_effect[support_to_current[valid_support]] = raw_support_effect[valid_support]
     current_effect *= np.float32(args.effect_scale)
+    effects_above_clip = int(np.count_nonzero(np.abs(current_effect) > args.effect_clip))
     np.clip(current_effect, -args.effect_clip, args.effect_clip, out=current_effect)
 
     target_index = current_gene_index[target]
@@ -444,6 +455,7 @@ def sparsify_effect(
     current_effect[target_index] = np.float32(final_target)
 
     eligible = np.flatnonzero(np.abs(current_effect) >= args.min_abs_effect)
+    effects_above_threshold = int(len(eligible))
     target_is_nonzero = bool(current_effect[target_index] != 0.0)
     if target_is_nonzero and target_index not in eligible:
         eligible = np.append(eligible, target_index)
@@ -465,6 +477,8 @@ def sparsify_effect(
         "modeled_target_effect": modeled_target,
         "final_target_effect": float(sparse_effect[target_index]),
         "retained_effects": int(np.count_nonzero(sparse_effect)),
+        "effects_above_clip_before_clipping": effects_above_clip,
+        "effects_above_threshold_before_topk": effects_above_threshold,
         "raw_support_l2": float(np.linalg.norm(raw_support_effect)),
         "raw_support_abs_max": float(np.max(np.abs(raw_support_effect))),
     }
@@ -527,6 +541,7 @@ def infer_context(
     control_sets: np.ndarray,
     targets: list[str],
     embeddings: dict[str, torch.Tensor],
+    support_gene_mask: np.ndarray,
     device: torch.device,
     args: argparse.Namespace,
     context: str,
@@ -539,15 +554,51 @@ def infer_context(
         torch.from_numpy(control_set).to(device=device, dtype=torch.float32)
         for control_set in control_sets
     ]
-    basal_mean = torch.stack([tensor.sum(dim=0) for tensor in basal_tensors]).sum(dim=0)
-    basal_mean /= float(args.sets_per_context * args.set_size)
+    require(
+        support_gene_mask.shape == (EXPECTED_SUPPORT_GENES,)
+        and support_gene_mask.dtype == np.bool_,
+        "support gene mask has the wrong shape or dtype",
+    )
+    shared_gene_mask = torch.from_numpy(support_gene_mask).to(device=device)
+    shared_gene_count = int(np.count_nonzero(support_gene_mask))
+    require(
+        shared_gene_count == EXPECTED_OVERLAP_GENES,
+        f"Unexpected normalization-axis gene count: {shared_gene_count}",
+    )
+    n_cells = float(args.sets_per_context * args.set_size)
+
+    def normalized_bulk_profile(
+        linear_sum: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        linear_mean = linear_sum / n_cells
+        # The support axis contains three genes that are absent from the challenge
+        # axis. Exclude them before target-sum normalization so they cannot change
+        # the scale of effects that will be transferred to challenge genes.
+        linear_mean = torch.where(shared_gene_mask, linear_mean, 0.0)
+        linear_total = linear_mean.sum()
+        require(
+            bool(torch.isfinite(linear_total)) and float(linear_total.item()) > 0.0,
+            f"Invalid STATE linear pseudobulk total for context {context}",
+        )
+        normalized = linear_mean * (args.effect_bulk_target_sum / linear_total)
+        profile = torch.log1p(normalized)
+        require(
+            bool(torch.isfinite(profile).all()),
+            f"Non-finite STATE pseudobulk profile for context {context}",
+        )
+        return profile, linear_total
+
+    basal_linear_sum = torch.stack(
+        [torch.expm1(tensor).sum(dim=0) for tensor in basal_tensors]
+    ).sum(dim=0)
+    basal_profile, basal_linear_total = normalized_bulk_profile(basal_linear_sum)
     effects = np.empty((len(targets), EXPECTED_SUPPORT_GENES), dtype=np.float32)
     prediction_qc: list[dict[str, float]] = []
 
-    def predict_mean(
+    def predict_profile(
         pert_vector: torch.Tensor, pert_name: str
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        prediction_sum = torch.zeros(
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        prediction_linear_sum = torch.zeros(
             EXPECTED_SUPPORT_GENES, device=device, dtype=torch.float32
         )
         prediction_min = torch.full((), float("inf"), device=device)
@@ -568,43 +619,59 @@ def infer_context(
                 f"STATE returned shape {tuple(prediction.shape)} for {context}/{pert_name}",
             )
             prediction = prediction.float()
-            prediction_sum += prediction.sum(dim=0)
+            linear_prediction = torch.expm1(prediction)
+            require(
+                bool(torch.isfinite(linear_prediction).all()),
+                f"STATE output overflows after expm1 for {context}/{pert_name}",
+            )
+            prediction_linear_sum += linear_prediction.sum(dim=0)
             prediction_min = torch.minimum(prediction_min, prediction.amin())
             prediction_max = torch.maximum(prediction_max, prediction.amax())
-            del prediction, output
+            del prediction, linear_prediction, output
         require(
-            bool(torch.isfinite(prediction_sum).all()),
+            bool(torch.isfinite(prediction_linear_sum).all()),
             f"Non-finite STATE output for {context}/{pert_name}",
         )
-        prediction_mean = prediction_sum / float(args.sets_per_context * args.set_size)
-        return prediction_mean, prediction_min, prediction_max
+        require(
+            float(prediction_min.item()) >= 0.0,
+            f"STATE returned a negative log1p prediction for {context}/{pert_name}",
+        )
+        profile, linear_total = normalized_bulk_profile(prediction_linear_sum)
+        return profile, prediction_min, prediction_max, linear_total
 
     with torch.inference_mode():
         if args.effect_reference == "model-control":
             control_vector = embeddings[CONTROL_LABEL].to(
                 device=device, dtype=torch.float32
             )
-            reference_mean, control_min, control_max = predict_mean(
-                control_vector, CONTROL_LABEL
-            )
+            (
+                reference_profile,
+                control_min,
+                control_max,
+                reference_linear_total,
+            ) = predict_profile(control_vector, CONTROL_LABEL)
         else:
-            reference_mean = basal_mean
-            control_min = basal_mean.amin()
-            control_max = basal_mean.amax()
+            reference_profile = basal_profile
+            control_min = basal_profile.amin()
+            control_max = basal_profile.amax()
+            reference_linear_total = basal_linear_total
 
         for target_index, target in enumerate(targets):
             pert_vector = embeddings[target].to(device=device, dtype=torch.float32)
-            prediction_mean, prediction_min_tensor, prediction_max_tensor = predict_mean(
-                pert_vector, target
-            )
-            effects[target_index] = (prediction_mean - reference_mean).cpu().numpy()
+            (
+                prediction_profile,
+                prediction_min_tensor,
+                prediction_max_tensor,
+                prediction_linear_total,
+            ) = predict_profile(pert_vector, target)
+            profile_delta = prediction_profile - reference_profile
+            effects[target_index] = profile_delta.cpu().numpy()
             prediction_qc.append(
                 {
                     "prediction_min": float(prediction_min_tensor.item()),
                     "prediction_max": float(prediction_max_tensor.item()),
-                    "delta_abs_max": float(
-                        torch.max(torch.abs(prediction_mean - reference_mean)).item()
-                    ),
+                    "prediction_linear_mean_total": float(prediction_linear_total.item()),
+                    "delta_abs_max": float(torch.max(torch.abs(profile_delta)).item()),
                 }
             )
             if (target_index + 1) % 25 == 0 or target_index + 1 == len(targets):
@@ -614,10 +681,15 @@ def infer_context(
                 )
     reference_qc = {
         "effect_reference": args.effect_reference,
+        "aggregation": "log1p of target-sum-normalized arithmetic pseudobulk",
+        "bulk_target_sum": float(args.effect_bulk_target_sum),
+        "bulk_axis_genes": shared_gene_count,
+        "input_linear_mean_total": float(basal_linear_total.item()),
+        "reference_linear_mean_total": float(reference_linear_total.item()),
         "reference_prediction_min": float(control_min.item()),
         "reference_prediction_max": float(control_max.item()),
         "reference_minus_input": summarize(
-            (reference_mean - basal_mean).detach().cpu().numpy()
+            (reference_profile - basal_profile).detach().cpu().numpy()
         ),
     }
     return effects, prediction_qc, reference_qc
@@ -629,6 +701,10 @@ def validate_args(args: argparse.Namespace) -> None:
     require(1 <= args.top_k <= 161, "top-k must be between 1 and 161")
     require(args.min_abs_effect >= 0, "min-abs-effect must be nonnegative")
     require(args.effect_scale > 0, "effect-scale must be positive")
+    require(
+        np.isfinite(args.effect_bulk_target_sum) and args.effect_bulk_target_sum > 0,
+        "effect-bulk-target-sum must be positive and finite",
+    )
     require(args.effect_clip > 0, "effect-clip must be positive")
     require(0 <= args.target_blend_weight <= 1, "target-blend-weight must be in [0, 1]")
     require(np.isfinite(args.target_log_effect), "target-log-effect must be finite")
@@ -702,10 +778,16 @@ def main() -> None:
         [index for index, gene in enumerate(current_genes) if gene not in support_gene_set],
         dtype=np.int64,
     )
+    effect_gene_mask = np.zeros(len(current_genes), dtype=np.bool_)
+    effect_gene_mask[support_to_current[support_to_current >= 0]] = True
     require(overlap == EXPECTED_OVERLAP_GENES, f"Unexpected gene overlap: {overlap}")
     require(
         len(current_only_indices) == EXPECTED_CURRENT_ONLY_GENES,
         f"Unexpected current-only gene count: {len(current_only_indices)}",
+    )
+    require(
+        int(np.count_nonzero(effect_gene_mask)) == EXPECTED_OVERLAP_GENES,
+        "Unexpected effect-normalization gene count",
     )
     require(all(target in current_gene_index for target in targets), "A target is absent from current genes")
     require(all(target in support_gene_set for target in targets), "A target is absent from support genes")
@@ -756,7 +838,14 @@ def main() -> None:
         )
         control_qc[context] = context_control_qc
         raw_context_effects, prediction_qc, reference_qc = infer_context(
-            model, control_sets, targets, embeddings, device, args, context
+            model,
+            control_sets,
+            targets,
+            embeddings,
+            support_to_current >= 0,
+            device,
+            args,
+            context,
         )
         control_qc[context]["state_reference"] = reference_qc
         del control_sets
@@ -796,6 +885,9 @@ def main() -> None:
         targets=np.asarray(targets, dtype="U64"),
         genes=np.asarray(current_genes, dtype="U64"),
         effects=all_effects,
+        effect_space=np.asarray(EFFECT_SPACE),
+        effect_target_sum=np.asarray(args.effect_bulk_target_sum, dtype=np.float64),
+        effect_gene_mask=effect_gene_mask,
     )
     elapsed = time.time() - started
     target_effects = np.asarray(
@@ -819,6 +911,10 @@ def main() -> None:
             "sets_per_context": args.sets_per_context,
             "cells_per_context": args.set_size * args.sets_per_context,
             "input_normalization": args.input_normalization,
+            "effect_space": EFFECT_SPACE,
+            "effect_aggregation": "log1p of target-sum-normalized arithmetic pseudobulk",
+            "effect_bulk_target_sum": args.effect_bulk_target_sum,
+            "effect_normalization_genes": int(np.count_nonzero(effect_gene_mask)),
             "effect_reference": args.effect_reference,
             "top_k_including_target": args.top_k,
             "min_abs_effect": args.min_abs_effect,

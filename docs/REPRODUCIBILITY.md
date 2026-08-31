@@ -156,7 +156,12 @@ counts, matching the released training path: the official support matrices are
 already log transformed but are not uniformly CP10K-scaled. It checks all 300
 ESM embeddings, maps 18,077 shared genes back to the official axis, assigns zero
 modeled delta to 456 challenge-only genes, and writes the same sparse effect-prior
-contract consumed by the raw-count generator. Never submit STATE's continuous
+contract consumed by the raw-count generator. Target and model-control outputs are
+aggregated as arithmetic pseudobulks over the 18,077 shared genes, normalized to
+the official 50,000-count bulk scale, and then differenced in log1p space. The
+STATE prior carries this normalization mask, and the package interprets those
+effects against the same shared-gene 50,000-count baseline. The Bayesian CP10K
+prior keeps its 10,000-count, all-gene default. Never submit STATE's continuous
 normalized output directly.
 
 ## Pre-submission review

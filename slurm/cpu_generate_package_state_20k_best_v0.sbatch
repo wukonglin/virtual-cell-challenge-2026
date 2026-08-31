@@ -85,9 +85,16 @@ provenance = report["provenance"]
 assert configuration["effect_reference"] == "model-control"
 assert configuration["precision"] == "float32"
 assert configuration["input_normalization"] == "log1p-raw"
+assert configuration["effect_space"] == (
+    "log1p-target-sum-normalized-arithmetic-pseudobulk-delta"
+)
+assert configuration["effect_bulk_target_sum"] == 50_000.0
+assert configuration["effect_normalization_genes"] == 18_077
 assert configuration["sets_per_context"] == 4
 assert configuration["cells_per_context"] == 512
 assert configuration["top_k_including_target"] == 161
+for context in "ABC":
+    assert report["qc"]["controls"][context]["state_reference"]["bulk_axis_genes"] == 18_077
 assert model["cell_sentence_len"] == 128
 assert model["input_dim"] == 18080
 assert model["output_dim"] == 18080
@@ -126,6 +133,7 @@ PY
   --output-json "$PRED_JSON" \
   --cells-per-group 400 \
   --max-base-genes 5780 \
+  --effect-baseline-target-sum 50000 \
   --compression lzf \
   --seed 20260831
 
@@ -139,6 +147,13 @@ assert report["validation"]["groups"] == 900
 assert report["validation"]["nnz"] < 2_140_000_000
 assert report["scientific_qc"]["all_groups_have_realized_delta"] is True
 assert report["scientific_qc"]["target_knockdown_failures"] == []
+assert report["generation"]["effect_baseline_target_sum"] == 50_000.0
+assert report["input_prior_effect_space"] == (
+    "log1p-target-sum-normalized-arithmetic-pseudobulk-delta"
+)
+assert report["input_prior_effect_target_sum"] == 50_000.0
+assert report["input_prior_effect_normalization_genes"] == 18_077
+assert report["generation"]["effect_normalization_genes"] == 18_077
 for context in "ABC":
     cap = report["context_statistics"][context]["sparsity_cap_qc"]
     assert cap["pseudobulk_cosine"] >= 0.995
