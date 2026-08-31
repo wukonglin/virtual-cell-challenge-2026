@@ -130,13 +130,22 @@ state_smoke_job=$(sbatch --parsable slurm/h100_train_state_smoke_v0.sbatch)
 ```
 
 The production job stages the six support H5 files on node-local storage,
-recreates the metadata wrappers there, trains `state_sm` for 20,000 steps, and
-selects `best.ckpt` by the held-out HepG2 validation loss:
+recreates the metadata wrappers there, and trains `state_sm` for 20,000 steps:
 
 ```bash
 state_train_job=$(sbatch --parsable \
   --dependency="afterok:$state_smoke_job" \
   slurm/h100_train_state_sm_v0.sbatch)
+```
+
+The current STATE callback can save before validation at the same 2,000-step
+boundary, which makes its automatic `best.ckpt` lag the validation result.
+Preserve `last.ckpt` as `checkpoints/stepNNNNN.ckpt` immediately after every
+validation. Then select the exact validation-aligned archive before inference:
+
+```bash
+.venv-state/bin/python scripts/select_state_checkpoint.py \
+  --run-dir artifacts/state_runs/state_sm_20k_v0
 ```
 
 Run bounded-memory inference on exact 128-cell sets and then package only if all

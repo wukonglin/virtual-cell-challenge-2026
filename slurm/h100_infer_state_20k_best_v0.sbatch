@@ -29,7 +29,8 @@ export CPATH="$PROJECT_DIR/.venv-state-headers/usr/include/python3.11"
 
 for required_path in \
   "$PYTHON_BIN" \
-  "$MODEL_DIR/checkpoints/best.ckpt" \
+  "$MODEL_DIR/checkpoints/selected.ckpt" \
+  "$MODEL_DIR/checkpoints/selected_checkpoint.json" \
   "$MODEL_DIR/pert_onehot_map.pt" \
   "$MODEL_DIR/var_dims.pkl" \
   scripts/infer_state_effect_prior.py \
@@ -58,7 +59,7 @@ nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv,nohead
 
 "$PYTHON_BIN" scripts/infer_state_effect_prior.py \
   --model-dir "$MODEL_DIR" \
-  --checkpoint best.ckpt \
+  --checkpoint selected.ckpt \
   --device cuda \
   --require-cuda \
   --require-h100 \

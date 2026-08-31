@@ -19,6 +19,7 @@ readonly VCC_BIN="$PROJECT_DIR/.venv-vcc/bin/vcc"
 readonly VCC_PY="$PROJECT_DIR/.venv-vcc/bin/python"
 readonly PRIOR_NPZ="$PROJECT_DIR/artifacts/state_effect_prior_20k_best_v0.npz"
 readonly PRIOR_JSON="$PROJECT_DIR/artifacts/state_effect_prior_20k_best_v0.json"
+readonly SELECTION_JSON="$PROJECT_DIR/artifacts/state_runs/state_sm_20k_v0/checkpoints/selected_checkpoint.json"
 readonly BAYES_NPZ="$PROJECT_DIR/artifacts/bayesian_prior_h100_v0.npz"
 readonly QC_JSON="$PROJECT_DIR/artifacts/state_vs_bayes_20k_best_v0.json"
 readonly PRED_H5AD="$PROJECT_DIR/artifacts/state_20k_best_v0.h5ad"
@@ -38,7 +39,8 @@ export TMPDIR="$task_tmp"
 trap 'rm -rf -- "$task_tmp"' EXIT
 
 for required_path in \
-  "$PYTHON_BIN" "$VCC_BIN" "$VCC_PY" "$PRIOR_NPZ" "$PRIOR_JSON" "$BAYES_NPZ" \
+  "$PYTHON_BIN" "$VCC_BIN" "$VCC_PY" "$PRIOR_NPZ" "$PRIOR_JSON" \
+  "$SELECTION_JSON" "$BAYES_NPZ" \
   scripts/qc_effect_priors.py \
   scripts/generate_bayesian_submission.py \
   dataset/controls/context_A.h5ad \
@@ -71,7 +73,7 @@ if [[ "$tmp_available_bytes" -lt 53687091200 ]]; then
   exit 4
 fi
 
-"$VCC_PY" - "$PRIOR_JSON" "$PROJECT_DIR" <<'PY'
+"$VCC_PY" - "$PRIOR_JSON" "$PROJECT_DIR" "$SELECTION_JSON" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -79,6 +81,7 @@ import sys
 
 report = json.load(open(sys.argv[1]))
 project_dir = pathlib.Path(sys.argv[2]).resolve()
+selection = json.load(open(sys.argv[3]))
 configuration = report["configuration"]
 model = report["model"]
 provenance = report["provenance"]
@@ -104,7 +107,16 @@ assert model["input_dim"] == 18080
 assert model["output_dim"] == 18080
 assert model["pert_dim"] == 5120
 assert model["parameters"] > 150_000_000
-assert pathlib.Path(provenance["checkpoint"]["path"]).name == "best.ckpt"
+assert selection["schema"] == "vcc-state-checkpoint-selection-v1"
+assert pathlib.Path(provenance["checkpoint"]["path"]).resolve() == pathlib.Path(
+    selection["selected"]["checkpoint"]
+).resolve()
+assert provenance["checkpoint"]["size_bytes"] == selection["selected"][
+    "checkpoint_size_bytes"
+]
+assert provenance["checkpoint"]["sha256"] == selection["selected"][
+    "checkpoint_sha256"
+]
 assert provenance["repository_commit"] is not None
 assert provenance["state_source_commit"] is not None
 prior_path = pathlib.Path(
