@@ -61,6 +61,16 @@ def parse_args() -> argparse.Namespace:
         "--controls-dir", type=Path, default=Path("dataset/controls")
     )
     parser.add_argument(
+        "--input-normalization",
+        choices=("log1p-raw", "cp10k-log1p"),
+        default="log1p-raw",
+        help=(
+            "Transform raw challenge controls to STATE input space. The official "
+            "support matrices are already log1p and are not uniformly CP10K-scaled; "
+            "log1p-raw therefore matches the released training path."
+        ),
+    )
+    parser.add_argument(
         "--support-genes",
         type=Path,
         default=Path("dataset/state_support/extracted/gene_names.csv"),
@@ -310,6 +320,7 @@ def load_control_sets(
     set_size: int,
     sets_per_context: int,
     seed: int,
+    input_normalization: str,
 ) -> tuple[np.ndarray, dict[str, Any]]:
     total_cells = set_size * sets_per_context
     adata = ad.read_h5ad(path, backed="r")
@@ -356,13 +367,16 @@ def load_control_sets(
     if sp.issparse(selected):
         selected = selected.toarray()
     selected = np.asarray(selected, dtype=np.float32)
-    normalized = np.zeros((total_cells, len(support_to_current)), dtype=np.float32)
-    normalized[:, valid_support] = selected
-    library_sizes = normalized.sum(axis=1)
+    model_input = np.zeros((total_cells, len(support_to_current)), dtype=np.float32)
+    model_input[:, valid_support] = selected
+    library_sizes = model_input.sum(axis=1)
     require(np.all(library_sizes > 0), f"Zero support-axis library size in {path}")
-    normalized *= (10_000.0 / library_sizes)[:, None]
-    np.log1p(normalized, out=normalized)
-    require(np.isfinite(normalized).all(), f"Normalization produced non-finite values in {path}")
+    if input_normalization == "cp10k-log1p":
+        model_input *= (10_000.0 / library_sizes)[:, None]
+    elif input_normalization != "log1p-raw":
+        raise RuntimeError(f"Unsupported input normalization: {input_normalization}")
+    np.log1p(model_input, out=model_input)
+    require(np.isfinite(model_input).all(), f"Normalization produced non-finite values in {path}")
 
     qc = {
         "path": str(path.resolve()),
@@ -373,11 +387,12 @@ def load_control_sets(
         "ntc_strata": int(len(allocation)),
         "ntc_allocation_min": int(min(allocation.values())),
         "ntc_allocation_max": int(max(allocation.values())),
+        "input_normalization": input_normalization,
         "raw_support_library_size": summarize(library_sizes),
-        "normalized_expression": summarize(normalized),
+        "model_input_expression": summarize(model_input),
         "sample_index_sha256": hashlib.sha256(indices.tobytes()).hexdigest(),
     }
-    return normalized.reshape(sets_per_context, set_size, -1), qc
+    return model_input.reshape(sets_per_context, set_size, -1), qc
 
 
 def summarize(values: np.ndarray | Iterable[float]) -> dict[str, float]:
@@ -484,7 +499,7 @@ def validate_model(model: Any, args: argparse.Namespace) -> dict[str, Any]:
     require(output_space == "all", f"This adapter requires output_space=all, found {output_space}")
     require(
         not bool(getattr(model, "log1p_from_raw_counts", False)),
-        "Checkpoint normalizes raw counts internally, but this adapter supplies CP10K log1p values",
+        "Checkpoint normalizes raw counts internally, but this adapter supplies log1p values",
     )
     return {
         "class": f"{type(model).__module__}.{type(model).__name__}",
@@ -737,6 +752,7 @@ def main() -> None:
             args.set_size,
             args.sets_per_context,
             args.seed + context_index,
+            args.input_normalization,
         )
         control_qc[context] = context_control_qc
         raw_context_effects, prediction_qc, reference_qc = infer_context(
@@ -802,7 +818,7 @@ def main() -> None:
             "set_size": args.set_size,
             "sets_per_context": args.sets_per_context,
             "cells_per_context": args.set_size * args.sets_per_context,
-            "normalization": "support-axis CP10K followed by log1p",
+            "input_normalization": args.input_normalization,
             "effect_reference": args.effect_reference,
             "top_k_including_target": args.top_k,
             "min_abs_effect": args.min_abs_effect,

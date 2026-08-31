@@ -151,11 +151,13 @@ sbatch --dependency="afterok:$state_infer_job" \
   slurm/cpu_generate_package_state_20k_best_v0.sbatch
 ```
 
-The STATE adapter performs support-axis CP10K/log1p normalization, checks all
-300 ESM embeddings, maps 18,077 shared genes back to the official axis, assigns
-zero modeled delta to 456 challenge-only genes, and writes the same sparse
-effect-prior contract consumed by the raw-count generator. Never submit STATE's
-continuous normalized output directly.
+The STATE adapter applies `log1p` directly to the raw support-axis control
+counts, matching the released training path: the official support matrices are
+already log transformed but are not uniformly CP10K-scaled. It checks all 300
+ESM embeddings, maps 18,077 shared genes back to the official axis, assigns zero
+modeled delta to 456 challenge-only genes, and writes the same sparse effect-prior
+contract consumed by the raw-count generator. Never submit STATE's continuous
+normalized output directly.
 
 ## Pre-submission review
 

@@ -84,6 +84,7 @@ provenance = report["provenance"]
 
 assert configuration["effect_reference"] == "model-control"
 assert configuration["precision"] == "float32"
+assert configuration["input_normalization"] == "log1p-raw"
 assert configuration["sets_per_context"] == 4
 assert configuration["cells_per_context"] == 512
 assert configuration["top_k_including_target"] == 161

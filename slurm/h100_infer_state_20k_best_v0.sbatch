@@ -59,6 +59,7 @@ nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv,nohead
   --require-cuda \
   --require-h100 \
   --precision float32 \
+  --input-normalization log1p-raw \
   --effect-reference model-control \
   --sets-per-context 4 \
   --top-k 161 \
