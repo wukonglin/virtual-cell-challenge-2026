@@ -65,11 +65,38 @@ Key artifact hashes recorded outside Git:
 
 The near-zero perturbation-discrimination score confirms that the generic response does not identify the 283 unseen targets. Direction reach is the only positive normalized component, while direction fidelity and significance overlap are the largest deficits. The next model should prioritize target-specific biology, sign calibration, and DE-set cardinality before increasing generator complexity.
 
-## STATE development candidate
+## STATE direct-count submission
 
-This candidate has not been submitted and has no leaderboard score yet. It is
-documented separately from the published Bayesian baseline to prevent local
-proxy metrics from being mistaken for official results.
+The validation entry reached `published` on 2026-08-31 with no server error.
+
+| Field | Value |
+|---|---:|
+| Entry ID | `JbDxq7SJV2wI0DWlIREn` |
+| Status | `published` |
+| Overall | `-0.005934851126896209` |
+| Rank at publication | `278` |
+| Partition | `val` |
+| Panel | `vcc2026-val-1` |
+| Anchor set | `vcc2026-valA-r4+vcc2026-valB-r4+vcc2026-valC-r4` |
+| Submitted model name | `STATE prediction` |
+| Submitted description | `mom~mom~` |
+
+### Official normalized component scores
+
+| Component | Score |
+|---|---:|
+| Perturbation discrimination | `-0.005513686296451654` |
+| Expression accuracy | `0.0` |
+| DE log-fold-change accuracy | `-0.029426427423495216` |
+| DE direction fidelity | `-0.046735254825253474` |
+| DE direction reach | `0.07618616804190716` |
+| DE significance overlap | `-0.030119906258084073` |
+
+The corresponding raw metrics were PDS cosine `0.4973690078037904`, capped
+unbiased expression MSE `4.738905630752523`, DE LFC NMAE
+`1.017691308794254`, direction fidelity yield `0.4982975881802142`, direction
+reach `0.1468263527929845`, and significant-gene Jaccard
+`0.019307311164370223`.
 
 ### Training and checkpoint selection
 
@@ -113,6 +140,31 @@ training loader supplied both as stored. This candidate uses elementwise
 later, but neither is justified as an unambiguous reconstruction of the mixed
 training representation.
 
+### Why ESM2 is used
+
+STATE requires a numeric perturbation condition, not only a gene-symbol label.
+The supplied ESM2 map represents each target with a 5,120-dimensional protein-
+sequence embedding. The perturbation MLP maps that vector to the model's
+672-dimensional hidden space and combines it with the basal-cell encoding
+before the set transformer predicts the response. All 300 challenge targets
+have finite, nonzero embeddings; non-targeting uses a zero vector.
+
+This continuous representation provides a zero-shot inductive bias: proteins
+with related sequence motifs, domains, or evolutionary context can share
+statistical strength even when a target was never directly perturbed in the
+public support data. This matters because only 17 of the 300 challenge targets
+have direct public effects in the assembled support cache. A one-hot gene ID
+would not encode similarity for the other 283 targets.
+
+ESM2 is a prior, not a regulatory-network model. It does not directly encode
+cell context, transcriptional causality, CRISPRi efficiency, guide off-targets,
+dose, time, or noncoding regulation, and sequence similarity does not guarantee
+similar downstream expression responses. The paired target/non-targeting
+forward pass, real-control anchoring, and explicit target knockdown reduce some
+failure modes but do not remove this limitation. The repository records only
+that the supplied features are ESM2 embeddings with dimension 5,120; it does
+not identify the exact upstream ESM2 checkpoint or pooling method.
+
 ### Verified smoke evidence
 
 The completed CPU plumbing smoke evaluated one target across contexts A, B, and
@@ -130,6 +182,21 @@ target totals changed from `140` to `10` in A, `938` to `162` in B, and `158`
 to `12` in C. All structural, library, challenge-only-count, and target-
 knockdown gates passed. This still covers only one of 300 targets and therefore
 is not a full-contract or performance test.
+
+### Full-contract production validation
+
+H100 generation job `860523` completed successfully. The output is a canonical
+`int32` CSR matrix with shape `360,000 x 18,533`, 900 context-target groups, 400
+cells per group, and 1,920,065,097 stored nonzeros. Every source-cell library
+and all 456 challenge-only gene counts were preserved exactly. All target-
+knockdown gates passed. Packaging job `860524` passed the official counts-
+preserving dry run, target verification, and container validation.
+
+| Artifact | SHA256 |
+|---|---|
+| Prediction H5AD | `cda914fa5ea3b8ca13ae480ad81e42a4dc7f77f733b29198166650f16e0b81ec` |
+| Prediction manifest | `91f1c8bb175534b84c8655c2a1ab956dffd3333bce25d6358e53694bee9f8aa0` |
+| Submission container | `a286243bab905c12d84cb83e5460ca18ab8cc0931624c3368ec98fbc9919e4d6` |
 
 ### HepG2 log-normalized proxy
 
@@ -154,10 +221,19 @@ already log normalized and does not expose recoverable integer counts, while
 the competition evaluator scores raw-count submissions. The proxy also uses
 upstream direct STATE output rather than the final paired count adapter.
 
-### Current status
+### Official interpretation
 
-Full H100 direct generation, the 360,000-cell scientific gates, official
-`vcc prep --require-counts --dry-run`, package creation, submission, and the
-leaderboard result are all pending. No claim about improvement over the
-published Bayesian baseline is justified until those stages complete and the
-official entry is published.
+The STATE submission improves the overall normalized score by
+`0.014652788214321124` over the Bayesian submission on the same validation
+panel and anchor set. Direction fidelity, direction reach, and significance
+overlap improved, while perturbation discrimination and LFC accuracy became
+worse; expression accuracy remained at the normalized floor of zero. The
+overall score is still below the official context-mean baseline of zero.
+
+The result supports the value of target-conditioned directionality but shows
+that the direct count adapter is not calibrated strongly enough. Its principal
+failure modes are excessive or misplaced off-target redistribution, inaccurate
+effect magnitude, inability to activate source-zero genes, and a fixed target
+knockdown fraction. A higher-capacity model alone is not the next priority;
+scorer-aligned count-space calibration and target-specific held-out validation
+are required first.

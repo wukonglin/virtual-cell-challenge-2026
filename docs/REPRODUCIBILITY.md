@@ -261,8 +261,8 @@ checks passed; source library sizes and all current-only counts were preserved
 exactly. This deliberately tiny run does not satisfy the full official
 360,000-cell contract and does not replace the H100 smoke or VCC dry run.
 
-After the H100 smoke passes, run full generation and package only its completed
-artifact:
+The production run used the following dependency chain so packaging could only
+start after successful H100 generation:
 
 ```bash
 state_direct_job=$(sbatch --parsable \
@@ -277,9 +277,15 @@ all 300 targets in A/B/C, the step-16,000 selection manifest, tanh bound `0.60`,
 forced target remaining fraction `0.20`, largest-remainder integerization, and
 on-disk H5AD concatenation. The package wrapper independently checks provenance,
 shape, groups, integer counts, scientific invariants, official target order,
-`vcc prep --require-counts --dry-run`, and the generated container. Full direct
-production, package validation, and leaderboard evaluation are pending; do not
-record them as complete until their artifacts and receipts exist.
+`vcc prep --require-counts --dry-run`, and the generated container.
+
+Production generation job `860523` and packaging job `860524` completed
+successfully. The full output contained 360,000 cells, 18,533 genes, 900 groups,
+400 cells per group, and 1,920,065,097 stored nonzeros. Exact source libraries,
+all 456 challenge-only gene counts, and all target-knockdown gates passed. The
+official dry run and package validation also passed. Submission entry
+`JbDxq7SJV2wI0DWlIREn` was published on the validation panel; its complete
+sanitized receipt is tracked in `results/state_direct_v0/submission.json`.
 
 ## HepG2 zero-shot proxy
 

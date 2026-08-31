@@ -70,13 +70,35 @@ STATE's uncalibrated absolute output into counts.
 A production-shape-per-group CPU smoke used 400 cells for one target in each
 context and produced a `1,200 x 18,533` canonical `int32` CSR matrix with exact
 per-cell libraries, exact challenge-only counts, unique observations, no
-controls, and no failed internal checks. It is not a full 300-target contract
-test. Full H100 direct generation, official VCC dry run, packaging, and a
-leaderboard score remain pending until their respective jobs complete
-successfully. The pinned 2026 STATE repository calls this model
+controls, and no failed internal checks. Full H100 generation job `860523`
+then completed the official `360,000 x 18,533` contract with 900 context-target
+groups and 1,920,065,097 stored nonzeros. Packaging job `860524` passed the
+official counts-preserving dry run, target verification, and container
+validation. The submitted container SHA256 is
+`a286243bab905c12d84cb83e5460ca18ab8cc0931624c3368ec98fbc9919e4d6`.
+The pinned 2026 STATE repository calls this model
 `state_sm`; the saved output in the older official notebook has the same
 128-cell, 672-hidden, four-layer architecture even though its source cell says
 `model=state`.
+
+The STATE direct-count validation submission was published on 2026-08-31:
+
+| Field | Value |
+|---|---:|
+| Entry | `JbDxq7SJV2wI0DWlIREn` |
+| Status | `published` |
+| Overall score | `-0.0059348511` |
+| Rank at publication | `278` |
+| Partition | `val` |
+| Panel | `vcc2026-val-1` |
+| Anchor set | `vcc2026-valA-r4+vcc2026-valB-r4+vcc2026-valC-r4` |
+| Submitted model name | `STATE prediction` |
+| Submitted description | `mom~mom~` |
+
+This improves the overall score over the first Bayesian submission on the same
+panel and anchor set, but it remains below the official context-mean baseline
+of zero. The receipt and component-level diagnosis are recorded in
+[the baseline report](docs/BASELINE_RESULTS.md).
 
 ## Repository layout
 

@@ -1,0 +1,36 @@
+{
+  "anchor_version": "vcc2026-valA-r4+vcc2026-valB-r4+vcc2026-valC-r4",
+  "description": "mom~mom~",
+  "entry_id": "JbDxq7SJV2wI0DWlIREn",
+  "error_info": null,
+  "is_final": false,
+  "is_terminal": true,
+  "model_name": "STATE prediction",
+  "panel_id": "vcc2026-val-1",
+  "partition": "val",
+  "rank_at_receipt": 278,
+  "raw_metrics": {
+    "de_wilcoxon_direction_fidelity_yield_raw": 0.4982975881802142,
+    "de_wilcoxon_direction_reach_raw": 0.1468263527929845,
+    "de_wilcoxon_lfc_nmae": 1.017691308794254,
+    "de_wilcoxon_sig_jaccard": 0.019307311164370223,
+    "expr_mse_unbiased_capped_norm": 4.738905630752523,
+    "pds_cosine": 0.4973690078037904
+  },
+  "score_avg": -0.005934851126896209,
+  "score_components": {
+    "direction_fidelity": -0.046735254825253474,
+    "direction_reach": 0.07618616804190716,
+    "expression_accuracy": 0.0,
+    "lfc_nmae": -0.029426427423495216,
+    "pds": -0.005513686296451654,
+    "significance_jaccard": -0.030119906258084073
+  },
+  "status": "published",
+  "submission_date": "2026-08-31T21:40:21.216058Z",
+  "submitted_container": {
+    "bytes_uploaded": 3111813120,
+    "md5_verified": true,
+    "sha256": "a286243bab905c12d84cb83e5460ca18ab8cc0931624c3368ec98fbc9919e4d6"
+  }
+}
