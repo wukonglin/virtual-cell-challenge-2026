@@ -385,12 +385,26 @@ rechecks the generation manifest and SHA256 before running official VCC dry-run,
 package, and container validation. Neither successful local proxy metrics nor
 the CPU smoke authorizes a submission by itself.
 
+The production generator also records exact count mass before and after the
+5,900-gene sparsity cap. It rejects the artifact if dropped mass exceeds 10%
+or absolute source-to-output library drift exceeds 15%, evaluated both overall
+and separately in A, B, and C. The six-cell production-policy smoke measured
+5.70% overall dropped mass and 5.83% library drift; its worst-context values
+were 6.88% and 6.99%. Packaging re-hashes the response/pseudobulk, generator,
+both gene axes, target axis, and all three controls against the generation
+manifest before invoking the official CLI.
+
 An additional one-H100 job trains an ESM2-conditioned K562 signature candidate:
 
 ```bash
 signature_job=$(sbatch --parsable \
   slurm/h100_train_k562_signature_v2.sbatch)
 ```
+
+The trainer keeps the 9,522 of 9,675 K562 targets with available ESM2 vectors
+and records all 153 excluded training names in the NPZ, checkpoint, and JSON.
+All 300 requested challenge targets must have ESM2 vectors; any missing
+prediction embedding remains a hard failure rather than a zero-filled feature.
 
 Its output is not automatically used by the v3 production path. It must first
 pass whole-cluster validation and be overlaid onto the full-axis fallback by an

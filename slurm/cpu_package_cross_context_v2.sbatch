@@ -47,7 +47,11 @@ for required_path in \
   "$RESPONSE_NPZ" \
   scripts/generate_state_scorer_aware_counts.py \
   dataset/controls/gene_names.csv \
-  dataset/controls/pert_counts.csv; do
+  dataset/state_support/extracted/gene_names.csv \
+  dataset/controls/pert_counts.csv \
+  dataset/controls/context_A.h5ad \
+  dataset/controls/context_B.h5ad \
+  dataset/controls/context_C.h5ad; do
   if [[ ! -r "$required_path" ]]; then
     echo "Missing required input: $required_path" >&2
     exit 2
@@ -73,7 +77,17 @@ hostname
 echo "SLURM_JOB_ID=${SLURM_JOB_ID:-unknown}"
 df -h "$PROJECT_DIR" /tmp
 
-"$VCC_PY" - "$PRED_JSON" "$PRED_H5AD" "$RESPONSE_NPZ" <<'PY'
+"$VCC_PY" - \
+  "$PRED_JSON" \
+  "$PRED_H5AD" \
+  "$RESPONSE_NPZ" \
+  scripts/generate_state_scorer_aware_counts.py \
+  dataset/controls/gene_names.csv \
+  dataset/state_support/extracted/gene_names.csv \
+  dataset/controls/pert_counts.csv \
+  dataset/controls/context_A.h5ad \
+  dataset/controls/context_B.h5ad \
+  dataset/controls/context_C.h5ad <<'PY'
 import hashlib
 import json
 import pathlib
@@ -82,6 +96,30 @@ import sys
 report = json.load(open(sys.argv[1], encoding="utf-8"))
 prediction = pathlib.Path(sys.argv[2]).resolve()
 response = pathlib.Path(sys.argv[3]).resolve()
+implementation = pathlib.Path(sys.argv[4]).resolve()
+current_genes = pathlib.Path(sys.argv[5]).resolve()
+support_genes = pathlib.Path(sys.argv[6]).resolve()
+targets = pathlib.Path(sys.argv[7]).resolve()
+controls = {
+    "A": pathlib.Path(sys.argv[8]).resolve(),
+    "B": pathlib.Path(sys.argv[9]).resolve(),
+    "C": pathlib.Path(sys.argv[10]).resolve(),
+}
+
+
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while block := handle.read(8 << 20):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def assert_manifest_file(record, path, label):
+    assert isinstance(record, dict), f"{label}: missing manifest record"
+    assert pathlib.Path(record["path"]).resolve() == path, f"{label}: path mismatch"
+    assert record["size_bytes"] == path.stat().st_size, f"{label}: size mismatch"
+    assert record["sha256"] == sha256_file(path), f"{label}: SHA256 mismatch"
 
 assert report["schema"] == "vcc-state-scorer-aware-counts-v2"
 assert report["full_official_contract"] is True
@@ -100,6 +138,8 @@ assert config["pseudobulk_depth_policy"] == "source-library"
 assert config["target_policy"] == "off"
 assert config["count_emission"] == "stochastic-round"
 assert config["max_genes_per_cell"] == 5900
+assert config["max_dropped_count_fraction"] == 0.10
+assert config["max_absolute_library_drift_fraction"] == 0.15
 assert report["scorer_contract"]["perturbed_gene_excluded_from_all_six_metrics"] is True
 assert report["axes"]["contexts"] == ["A", "B", "C"]
 assert report["axes"]["targets"] == 300
@@ -110,17 +150,43 @@ assert report["validation"]["groups"] == 900
 assert report["validation"]["nnz"] < 2140000000
 assert all(report["validation"]["checks"].values())
 assert report["scientific_qc"]["target_clamp_failures"] == []
+mass = report["scientific_qc"]["count_mass"]
+assert mass["passed"] is True
+assert mass["violations"] == []
+assert mass["thresholds"] == {
+    "max_dropped_count_fraction": 0.10,
+    "max_absolute_library_drift_fraction": 0.15,
+    "evaluation_scopes": ["overall", "A", "B", "C"],
+}
+assert set(mass["by_context"]) == {"A", "B", "C"}
+for scope in [mass["overall"], *mass["by_context"].values()]:
+    assert scope["emitted_count_total_before_cap"] == (
+        scope["emitted_count_total_after_cap"] + scope["dropped_count_total"]
+    )
+    assert scope["dropped_count_fraction"] <= 0.10
+    assert scope["absolute_library_drift_fraction"] <= 0.15
+assert mass["overall"]["dropped_count_total"] == report["scientific_qc"][
+    "dropped_counts_without_redistribution"
+]
 
 for key in ("response_artifact", "pseudobulk_artifact"):
-    assert pathlib.Path(report["provenance"][key]["path"]).resolve() == response
+    assert_manifest_file(report["provenance"][key], response, key)
+assert_manifest_file(report["provenance"]["script"], implementation, "implementation")
+assert_manifest_file(
+    report["provenance"]["current_gene_axis"], current_genes, "current_gene_axis"
+)
+assert_manifest_file(
+    report["provenance"]["support_gene_axis"], support_genes, "support_gene_axis"
+)
+assert_manifest_file(report["provenance"]["target_axis"], targets, "target_axis")
+for context, path in controls.items():
+    assert_manifest_file(
+        report["provenance"]["controls"][context], path, f"control_{context}"
+    )
 output_provenance = report["provenance"]["output_h5ad"]
 assert pathlib.Path(output_provenance["path"]).resolve() == prediction
 assert output_provenance["size_bytes"] == prediction.stat().st_size
-digest = hashlib.sha256()
-with prediction.open("rb") as handle:
-    while block := handle.read(8 << 20):
-        digest.update(block)
-assert output_provenance["sha256"] == digest.hexdigest()
+assert output_provenance["sha256"] == sha256_file(prediction)
 print("Cross-context provenance and generation assertions passed")
 PY
 

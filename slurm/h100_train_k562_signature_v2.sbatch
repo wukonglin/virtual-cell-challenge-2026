@@ -100,6 +100,17 @@ assert report["configuration"]["output_rank"] == 128
 assert report["configuration"]["hidden_dim"] == 512
 assert report["configuration"]["clusters"] == 20
 assert report["configuration"]["validation_fraction"] == 0.20
+data = report["data"]
+assert data["training_targets_before_esm2_filter"] >= data["training_targets_after_esm2_filter"] > 1
+assert data["excluded_training_targets_missing_esm2"] == (
+    data["training_targets_before_esm2_filter"]
+    - data["training_targets_after_esm2_filter"]
+)
+assert len(data["excluded_training_target_names"]) == data[
+    "excluded_training_targets_missing_esm2"
+]
+assert data["prediction_targets_requested"] == 300
+assert data["prediction_targets_missing_esm2"] == 0
 print("K562 ESM2 signature artifacts passed production gates")
 PY
 

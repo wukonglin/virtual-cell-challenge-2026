@@ -96,16 +96,87 @@ def read_challenge_targets(path: Path, column: str) -> list[str]:
     return targets
 
 
-def load_esm2(path: Path, names: list[str]) -> np.ndarray:
+@dataclass(frozen=True)
+class ESM2Partition:
+    training_indices: np.ndarray
+    training_features: np.ndarray
+    prediction_features: np.ndarray
+    excluded_training_target_names: tuple[str, ...]
+    training_target_count_before_filter: int
+    prediction_target_count: int
+
+    def metadata(self) -> dict[str, Any]:
+        return {
+            "training_targets_before_esm2_filter": self.training_target_count_before_filter,
+            "training_targets_after_esm2_filter": int(len(self.training_indices)),
+            "excluded_training_targets_missing_esm2": len(
+                self.excluded_training_target_names
+            ),
+            "excluded_training_target_names": list(
+                self.excluded_training_target_names
+            ),
+            "prediction_targets_requested": self.prediction_target_count,
+            "prediction_targets_missing_esm2": 0,
+        }
+
+
+def load_esm2_partition(
+    path: Path,
+    training_names: list[str],
+    prediction_names: list[str],
+) -> ESM2Partition:
+    """Filter training targets by ESM2 availability and require every prediction target."""
+
     payload = torch.load(path, map_location="cpu", weights_only=True)
     require(isinstance(payload, dict), "ESM2 file must contain a target-to-tensor map")
-    missing = [name for name in names if name not in payload]
-    require(not missing, f"Missing ESM2 embeddings for {len(missing)} targets: {missing[:8]}")
-    dimensions = {int(payload[name].numel()) for name in names}
+    require(
+        len(training_names) == len(set(training_names)),
+        "Training target names must be unique",
+    )
+    require(
+        len(prediction_names) == len(set(prediction_names)),
+        "Prediction target names must be unique",
+    )
+    missing_prediction = [name for name in prediction_names if name not in payload]
+    require(
+        not missing_prediction,
+        "Missing ESM2 embeddings for "
+        f"{len(missing_prediction)} prediction targets: {missing_prediction[:8]}",
+    )
+    training_indices = np.asarray(
+        [index for index, name in enumerate(training_names) if name in payload],
+        dtype=np.int64,
+    )
+    excluded_training_names = tuple(
+        name for name in training_names if name not in payload
+    )
+    require(len(training_indices) > 1, "Fewer than two training targets have ESM2 embeddings")
+    retained_training_names = [training_names[index] for index in training_indices]
+    requested_names = tuple(dict.fromkeys(retained_training_names + prediction_names))
+    require(
+        all(isinstance(payload[name], torch.Tensor) for name in requested_names),
+        "ESM2 map values must be tensors",
+    )
+    dimensions = {int(payload[name].numel()) for name in requested_names}
     require(len(dimensions) == 1, "ESM2 embeddings have inconsistent dimensions")
-    matrix = torch.stack([payload[name].float().reshape(-1) for name in names]).numpy()
-    require(np.isfinite(matrix).all(), "ESM2 embeddings contain non-finite values")
-    return matrix
+    training_features = torch.stack(
+        [payload[name].float().reshape(-1) for name in retained_training_names]
+    ).numpy()
+    prediction_features = torch.stack(
+        [payload[name].float().reshape(-1) for name in prediction_names]
+    ).numpy()
+    require(
+        np.isfinite(training_features).all() and np.isfinite(prediction_features).all(),
+        "ESM2 embeddings contain non-finite values",
+    )
+    return ESM2Partition(
+        training_indices=training_indices,
+        training_features=training_features,
+        prediction_features=prediction_features,
+        excluded_training_target_names=excluded_training_names,
+        training_target_count_before_filter=len(training_names),
+        prediction_target_count=len(prediction_names),
+    )
 
 
 def weighted_common_effect(
@@ -539,10 +610,16 @@ def main() -> None:
     output_gene_names = [
         name for name, keep in zip(gene_names, output_gene_mask, strict=True) if keep
     ]
-    all_feature_names = target_names + challenge_targets
-    all_features = load_esm2(args.esm2_embeddings, all_feature_names)
-    train_features = all_features[: len(target_names)]
-    challenge_features = all_features[len(target_names) :]
+    esm2_partition = load_esm2_partition(
+        args.esm2_embeddings,
+        target_names,
+        challenge_targets,
+    )
+    effects = effects[esm2_partition.training_indices]
+    counts = counts[esm2_partition.training_indices]
+    target_names = [target_names[index] for index in esm2_partition.training_indices]
+    train_features = esm2_partition.training_features
+    challenge_features = esm2_partition.prediction_features
 
     train_indices, validation_indices, cluster_labels = make_cluster_split(
         train_features, args.clusters, args.validation_fraction, args.seed
@@ -689,6 +766,18 @@ def main() -> None:
         residual_effects=challenge_residual[:, output_gene_mask].astype(np.float32),
         common_scale=np.asarray([common_scale], dtype=np.float32),
         residual_scale=np.asarray([residual_scale], dtype=np.float32),
+        training_targets_before_esm2_filter=np.asarray(
+            [esm2_partition.training_target_count_before_filter], dtype=np.int64
+        ),
+        training_targets_after_esm2_filter=np.asarray(
+            [len(esm2_partition.training_indices)], dtype=np.int64
+        ),
+        excluded_training_target_count=np.asarray(
+            [len(esm2_partition.excluded_training_target_names)], dtype=np.int64
+        ),
+        excluded_training_target_names=np.asarray(
+            esm2_partition.excluded_training_target_names, dtype="U"
+        ),
     )
     checkpoint = {
         "schema": SCHEMA,
@@ -708,6 +797,7 @@ def main() -> None:
         "common_scale": common_scale,
         "residual_scale": residual_scale,
         "gene_names": gene_names,
+        "esm2_training_coverage": esm2_partition.metadata(),
     }
     torch.save(checkpoint, args.output_checkpoint)
 
@@ -741,6 +831,7 @@ def main() -> None:
         },
         "data": {
             "training_targets": len(target_names),
+            **esm2_partition.metadata(),
             "challenge_targets": len(challenge_targets),
             "genes": len(gene_names),
             "output_genes_on_challenge_axis": len(output_gene_names),

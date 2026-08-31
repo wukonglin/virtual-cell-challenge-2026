@@ -109,6 +109,8 @@ nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv,nohead
   --target-policy off \
   --count-emission stochastic-round \
   --max-genes-per-cell 5900 \
+  --max-dropped-count-fraction 0.10 \
+  --max-absolute-library-drift-fraction 0.15 \
   --groups-per-shard 20 \
   --concat-max-loaded-elements 20000000 \
   --compression lzf \
@@ -146,6 +148,8 @@ assert config["pseudobulk_depth_policy"] == "source-library"
 assert config["target_policy"] == "off"
 assert config["count_emission"] == "stochastic-round"
 assert config["max_genes_per_cell"] == 5900
+assert config["max_dropped_count_fraction"] == 0.10
+assert config["max_absolute_library_drift_fraction"] == 0.15
 assert config["library_policy"] == (
     "independent-gene-expectations; no total renormalization"
 )
@@ -164,6 +168,24 @@ assert validation["nnz"] < 2140000000
 assert all(validation["checks"].values())
 assert report["scientific_qc"]["target_clamp_failures"] == []
 assert report["scientific_qc"]["induced_zero_emitted_entries"] > 0
+mass = report["scientific_qc"]["count_mass"]
+assert mass["passed"] is True
+assert mass["violations"] == []
+assert mass["thresholds"] == {
+    "max_dropped_count_fraction": 0.10,
+    "max_absolute_library_drift_fraction": 0.15,
+    "evaluation_scopes": ["overall", "A", "B", "C"],
+}
+assert set(mass["by_context"]) == {"A", "B", "C"}
+for scope in [mass["overall"], *mass["by_context"].values()]:
+    assert scope["emitted_count_total_before_cap"] == (
+        scope["emitted_count_total_after_cap"] + scope["dropped_count_total"]
+    )
+    assert scope["dropped_count_fraction"] <= 0.10
+    assert scope["absolute_library_drift_fraction"] <= 0.15
+assert mass["overall"]["dropped_count_total"] == report["scientific_qc"][
+    "dropped_counts_without_redistribution"
+]
 
 for key in ("response_artifact", "pseudobulk_artifact"):
     assert pathlib.Path(report["provenance"][key]["path"]).resolve() == response

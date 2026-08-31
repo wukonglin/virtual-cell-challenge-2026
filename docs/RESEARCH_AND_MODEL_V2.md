@@ -302,8 +302,11 @@ The context-conditioned expected-count prior has SHA256
 `b892bf83d6e26f1d86781a4385cf7389ad8f344308cc16c319da1afb741b887c`.
 
 The remaining 33 targets currently use the earlier ESM2/Bayesian fallback.
-The next one-H100 job trains a K562-wide ESM2 residual head, and its predictions
-will overlay only the target-gene coordinates it actually models; all other
+The next one-H100 job trains a K562-wide ESM2 residual head. Of 9,675 reliable
+K562 training targets, 9,522 have ESM2 vectors; the 153 missing training rows
+are excluded with their names recorded, while missing embeddings for any of
+the 300 requested prediction targets remain a hard error. Its predictions will
+overlay only the target-gene coordinates it actually models; all other
 coordinates retain the full-axis fallback. A flow is deliberately not yet the
 production generator. It will be evaluated only as a zero-mean residual around
 this frozen pseudobulk so that heterogeneity cannot erase the newly protected
@@ -334,10 +337,12 @@ or replacing a prediction with a nearest public profile.
 | scDFM | Conditional distributional flow matching with an MMD objective and a PAD-Transformer gene graph | Compact flow prototype and graph-conditioned objective reference | Its released Norman/ComboSciPlex setup tests unseen perturbations or combinations, not VCC's double-unseen target and cell-line regime; it uses a reduced gene axis and discrete IDs | ICLR 2026; MIT |
 | GARM | Five decoders combine pointwise MAE with efficient pairwise gene-ranking and perturbation-ranking objectives | Loss design for target residual, PDS-like discrimination, and magnitude; simple strong pseudobulk baseline | Its four-screen cross-dataset experiment uses a 6,641-gene pseudobulk axis, not a raw-count distribution or the VCC six-metric contract | October 2025 non-peer-reviewed preprint; code is BSD 3-Clause |
 | Response decomposition | Separates global, cell-line, conserved-target, and context-target components in a balanced four-line tensor | Lightweight baseline, variance audit, and an explicit uncertainty prior for the interaction term | Controls and generic target priors do not identify the context-target interaction; it must be shrunk or supported by query-specific routes | July 2026 preprint; reference implementation is MIT |
+| COMPASS | Decomposes each context-target response into a context-wide shared axis, target-specific response strength, and an off-axis target residual | Direct mathematical template for protecting the common expression surface while improving target discrimination | It predicts pseudobulk effects rather than raw-count single-cell distributions, and its six-line study does not remove VCC's anonymous-context uncertainty | August 2026 non-peer-reviewed preprint under CC BY-NC-ND 4.0; the public code repository displayed no license during this audit, so do not copy it |
 | Stable-Shift | Fits a low-rank response basis and predicts unseen-target coordinates from STRING, control expression, network, and GO features | Direct template for biologically structured unseen-target residual prediction | Initial evidence is mainly K562 and preprint-scale; sparse network neighborhoods and gene-space accuracy remain limitations | 2026 arXiv preprint. Public repository displayed no license in this audit, so code reuse rights must not be assumed |
 | PerturbMap | Recipient-local low-rank base plus source-to-recipient ridge experts for the same perturbation, weighted by route reliability on training anchors | Transfer full K562 or other same-target responses into anonymous VCC contexts; especially valuable if new exact-target experiments are allowed for training | Requires the query perturbation to be measured in at least one source context, predicts a condition-level mean, and was tested on a melanoma cohort rather than VCC | July 2026 arXiv preprint; no official code repository was found in this audit |
 | Tahoe-x1 | 70M, 1.3B, and 3B perturbation-trained single-cell foundation models; masked-expression objective over 266M profiles including Tahoe-100M | Frozen context/cell and gene representations; a candidate State Embedding replacement; decoder pretraining | Pretraining is cancer/drug-oriented and the largest model sees at most 2,048 genes per sequence, far short of the 18,533-gene output; representation scale is not response skill | 2025 bioRxiv preprint; code and model weights are Apache 2.0 |
 | X-Cell / X-Atlas | Diffusion language model with ESM2, STRING, GenePT, DepMap, JUMP, and scGPT priors; paper reports 25.6M perturbed cells in 16 contexts | Future pretrained comparator and source of multimodal target-feature designs | On 2026-08-31 the official repository says weights and inference code are coming soon, and the dataset page is only a placeholder; it is not executable evidence today | March 2026 preprint; repository and placeholder dataset are CC BY-NC-SA 4.0 |
+| GeneGeoFlow | Conditions a control-anchored residual flow on perturbation-gated GO and control-coexpression geometry, with condition-wise OT and a delta-correlation objective | Conceptual reference for a mean-protected residual flow and target-direction loss after the signal head is validated | Evidence is on Norman and ComboSciPlex rather than VCC's double-unseen regime; no official code release was located | August 2026 arXiv preprint; conceptual evidence only |
 
 ### 3.2 STATE
 
@@ -560,7 +565,64 @@ small placeholder rather than the reported cells. Therefore X-Cell is a
 design reference and release watchlist, not a runnable baseline or available
 training set. The visible repositories are CC BY-NC-SA 4.0.
 
-### 3.11 Benchmark warnings that constrain the design
+### 3.11 COMPASS
+
+Sources:
+
+- Paper: <https://www.biorxiv.org/content/10.64898/2026.08.03.742643v1>
+- Repository: <https://github.com/rohitsinghlab/compass>
+
+**[PUBLICATION]** COMPASS studies 2,270 CRISPRi perturbations shared across six
+cell lines and writes each effect as
+
+\[
+z_{c,p}=\beta_{c,p}u_c+r_{c,p},
+\]
+
+where `u_c` is a context-wide shared response direction, `beta_cp` is the
+target-specific strength along it, and `r_cp` is the off-axis target residual.
+The preprint reports that the shared-response coefficient is strongly conserved
+across contexts, the residual is moderately conserved, and STRING features
+predict part of the shared-response coefficient. It reports cosine-PDS gain
+`0.23`, compared with at most `0.08` for the included baselines, while also
+remaining competitive on response accuracy.
+
+**[INFERENCE]** This is the closest published match to the implemented v3
+decomposition. It explains why a context mean can obtain reasonable expression
+fit yet fail target discrimination: target identity lives primarily in
+variation around the shared axis. The next response head should predict both
+`beta_cp` and `r_cp`, rather than treating target strength as a global scalar.
+Its STRING-neighbor result also argues for evaluating ESM2, STRING, and
+coessentiality as separate, nested-fold target features instead of assuming
+that protein sequence is the best response prior.
+
+The result is a recent non-peer-reviewed preprint. The paper is CC BY-NC-ND
+4.0, and the public code repository displayed no license file during this
+audit. The mathematical decomposition may be implemented independently, but
+the repository code must not be copied into this private project without
+explicit permission or a confirmed license.
+
+### 3.12 GeneGeoFlow
+
+Source: <https://arxiv.org/abs/2608.06824>.
+
+**[PUBLICATION]** GeneGeoFlow uses a control-anchored residual flow conditioned
+on perturbation-specific gene geometry derived from Gene Ontology and
+control-state coexpression. It uses condition-wise optimal transport to couple
+unpaired populations and adds a delta-correlation objective to preserve the
+direction of each condition-level expression shift. The paper reports strong
+Pearson-delta results on Norman and a fixed ComboSciPlex split.
+
+**[INFERENCE]** This supports two limited design choices: condition a residual
+generator on target-dependent biological geometry, and include a target-delta
+direction loss. It does not show that a flow can recover a missing target mean
+or transfer into anonymous VCC contexts. The production interpretation remains
+mean-protected: freeze the validated pseudobulk, train a residual flow, and
+recenter the 400 residuals in each context-target group before count decoding.
+No official code release was located, so this method is conceptual evidence
+only.
+
+### 3.13 Benchmark warnings that constrain the design
 
 - Systema shows that average perturbation effects and systematic variation can
   make a model look predictive without recovering target-specific biology:

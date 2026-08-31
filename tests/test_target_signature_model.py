@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 import numpy as np
+import torch
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
@@ -15,11 +17,65 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 from train_target_signature_model import (  # noqa: E402
+    load_esm2_partition,
     make_cluster_split,
     proxy_metrics,
     select_scales,
     weighted_common_effect,
 )
+
+
+class ESM2CoverageTests(unittest.TestCase):
+    def test_missing_training_targets_are_filtered_with_stable_alignment(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "esm2.pt"
+            torch.save(
+                {
+                    "A": torch.tensor([1.0, 2.0]),
+                    "B": torch.tensor([3.0, 4.0]),
+                    "P": torch.tensor([5.0, 6.0]),
+                },
+                path,
+            )
+            partition = load_esm2_partition(
+                path,
+                ["A", "missing", "B"],
+                ["P", "A"],
+            )
+        np.testing.assert_array_equal(partition.training_indices, [0, 2])
+        np.testing.assert_array_equal(
+            partition.training_features,
+            np.asarray([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32),
+        )
+        np.testing.assert_array_equal(
+            partition.prediction_features,
+            np.asarray([[5.0, 6.0], [1.0, 2.0]], dtype=np.float32),
+        )
+        self.assertEqual(partition.excluded_training_target_names, ("missing",))
+        self.assertEqual(
+            partition.metadata(),
+            {
+                "training_targets_before_esm2_filter": 3,
+                "training_targets_after_esm2_filter": 2,
+                "excluded_training_targets_missing_esm2": 1,
+                "excluded_training_target_names": ["missing"],
+                "prediction_targets_requested": 2,
+                "prediction_targets_missing_esm2": 0,
+            },
+        )
+
+    def test_missing_prediction_target_remains_a_hard_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "esm2.pt"
+            torch.save(
+                {
+                    "A": torch.tensor([1.0, 2.0]),
+                    "B": torch.tensor([3.0, 4.0]),
+                },
+                path,
+            )
+            with self.assertRaisesRegex(ValueError, "prediction targets"):
+                load_esm2_partition(path, ["A", "B", "missing"], ["P"])
 
 
 class CommonResponseTests(unittest.TestCase):

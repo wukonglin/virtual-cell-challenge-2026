@@ -183,6 +183,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--max-genes-per-cell", type=int, default=DEFAULT_MAX_GENES_PER_CELL
     )
+    parser.add_argument(
+        "--max-dropped-count-fraction",
+        type=float,
+        default=0.10,
+        help=(
+            "Maximum count mass removed by the per-cell gene cap, evaluated "
+            "over the full artifact and separately within every context."
+        ),
+    )
+    parser.add_argument(
+        "--max-absolute-library-drift-fraction",
+        type=float,
+        default=0.15,
+        help=(
+            "Maximum absolute output-versus-source library drift, evaluated "
+            "over the full artifact and separately within every context."
+        ),
+    )
     parser.add_argument("--groups-per-shard", type=int, default=20)
     parser.add_argument("--concat-max-loaded-elements", type=int, default=20_000_000)
     parser.add_argument("--compression", choices=("lzf", "gzip", "none"), default="lzf")
@@ -212,6 +230,14 @@ def validate_args(args: argparse.Namespace) -> None:
     require(
         0 < args.max_genes_per_cell <= EXPECTED_CURRENT_GENES,
         "Invalid max-genes-per-cell",
+    )
+    require(
+        0 <= args.max_dropped_count_fraction <= 1,
+        "max-dropped-count-fraction must be in [0, 1]",
+    )
+    require(
+        0 <= args.max_absolute_library_drift_fraction <= 1,
+        "max-absolute-library-drift-fraction must be in [0, 1]",
     )
     require(args.groups_per_shard > 0, "groups-per-shard must be positive")
     require(args.concat_max_loaded_elements > 0, "Invalid concat memory bound")
@@ -554,6 +580,7 @@ def emit_independent_counts(
         ).astype(np.int64)
         counts[:, target_index] = np.minimum(counts[:, target_index], target_caps)
     require(np.all(counts >= 0), "Emission produced negative counts")
+    emitted_before_cap = int(counts.sum(dtype=np.int64))
 
     dropped_nnz = 0
     dropped_counts = 0
@@ -582,6 +609,11 @@ def emit_independent_counts(
         )
     matrix = sp.vstack(rows, format="csr", dtype=np.int32)
     libraries = np.asarray(matrix.sum(axis=1)).ravel().astype(np.int64)
+    emitted_after_cap = int(libraries.sum(dtype=np.int64))
+    require(
+        emitted_before_cap - emitted_after_cap == dropped_counts,
+        "Count-mass accounting failed after the per-cell gene cap",
+    )
     require(np.all(libraries > 0), "Independent emission produced an empty cell")
     require(
         np.all(libraries <= MAX_OFFICIAL_CELL_LIBRARY),
@@ -593,6 +625,8 @@ def emit_independent_counts(
     return matrix, {
         "output_library": summarize(libraries),
         "output_nnz": summarize(np.diff(matrix.indptr)),
+        "emitted_count_total_before_cap": emitted_before_cap,
+        "emitted_count_total_after_cap": emitted_after_cap,
         "dropped_nnz_without_redistribution": int(dropped_nnz),
         "dropped_counts_without_redistribution": int(dropped_counts),
     }
@@ -628,6 +662,10 @@ def build_group_block_v2(
     dropped_counts = 0
     target_before = 0
     target_after = 0
+    input_count_total = 0
+    expected_count_total = 0.0
+    emitted_count_total_before_cap = 0
+    emitted_count_total_after_cap = 0
     chunk_sizes: list[int] = []
     prediction_ranges: list[dict[str, float]] = []
 
@@ -700,6 +738,14 @@ def build_group_block_v2(
         induced_observed_entries += int(np.count_nonzero(base_zero & (emitted_dense > 0)))
         dropped_nnz += int(emission_qc["dropped_nnz_without_redistribution"])
         dropped_counts += int(emission_qc["dropped_counts_without_redistribution"])
+        input_count_total += int(base_dense.sum(dtype=np.float64))
+        expected_count_total += float(expectation.sum(dtype=np.float64))
+        emitted_count_total_before_cap += int(
+            emission_qc["emitted_count_total_before_cap"]
+        )
+        emitted_count_total_after_cap += int(
+            emission_qc["emitted_count_total_after_cap"]
+        )
         target_before += int(base_dense[:, target_current_index].sum(dtype=np.float64))
         target_after += int(emitted_dense[:, target_current_index].sum(dtype=np.int64))
         del model_input, state_delta, log_fold, base_dense, expectation, emitted_dense
@@ -711,6 +757,11 @@ def build_group_block_v2(
     require(matrix.shape == (raw.shape[0], EXPECTED_CURRENT_GENES), "Bad group shape")
     require(matrix.has_canonical_format, "Generated group CSR is not canonical")
     require(np.all(matrix.data > 0), "Generated group has invalid sparse values")
+    require(
+        emitted_count_total_before_cap - emitted_count_total_after_cap == dropped_counts,
+        "Group count-mass accounting failed after the per-cell gene cap",
+    )
+    require(input_count_total > 0 and expected_count_total > 0, "Group count mass is empty")
     target_remaining = float(target_after / max(target_before, 1))
     return matrix, {
         "cells": int(raw.shape[0]),
@@ -731,9 +782,132 @@ def build_group_block_v2(
         "induced_zero_emitted_entries": induced_observed_entries,
         "dropped_nnz_without_redistribution": dropped_nnz,
         "dropped_counts_without_redistribution": dropped_counts,
+        "count_mass": {
+            "source_input_count_total": input_count_total,
+            "model_expected_count_total": expected_count_total,
+            "emitted_count_total_before_cap": emitted_count_total_before_cap,
+            "emitted_count_total_after_cap": emitted_count_total_after_cap,
+            "dropped_count_total": dropped_counts,
+            "dropped_count_fraction": float(
+                dropped_counts / max(emitted_count_total_before_cap, 1)
+            ),
+            "signed_library_drift_fraction": float(
+                (emitted_count_total_after_cap - input_count_total)
+                / input_count_total
+            ),
+            "absolute_library_drift_fraction": float(
+                abs(emitted_count_total_after_cap - input_count_total)
+                / input_count_total
+            ),
+            "signed_emission_rounding_fraction": float(
+                (emitted_count_total_before_cap - expected_count_total)
+                / expected_count_total
+            ),
+        },
         "target_sum_before": target_before,
         "target_sum_after": target_after,
         "target_remaining_fraction": target_remaining,
+    }
+
+
+def aggregate_count_mass_qc(
+    groups: list[dict[str, Any]],
+    *,
+    max_dropped_count_fraction: float,
+    max_absolute_library_drift_fraction: float,
+) -> dict[str, Any]:
+    """Aggregate exact count mass and evaluate artifact/context production gates."""
+
+    require(bool(groups), "No group count-mass records were provided")
+    require(
+        0 <= max_dropped_count_fraction <= 1,
+        "Invalid dropped-count threshold",
+    )
+    require(
+        0 <= max_absolute_library_drift_fraction <= 1,
+        "Invalid library-drift threshold",
+    )
+
+    def summarize_scope(records: list[dict[str, Any]]) -> dict[str, Any]:
+        require(bool(records), "A count-mass scope is empty")
+        masses = [record["count_mass"] for record in records]
+        source = int(sum(int(item["source_input_count_total"]) for item in masses))
+        expected = float(sum(float(item["model_expected_count_total"]) for item in masses))
+        before_cap = int(
+            sum(int(item["emitted_count_total_before_cap"]) for item in masses)
+        )
+        after_cap = int(
+            sum(int(item["emitted_count_total_after_cap"]) for item in masses)
+        )
+        dropped = int(sum(int(item["dropped_count_total"]) for item in masses))
+        require(source > 0 and expected > 0 and before_cap > 0, "Invalid count-mass total")
+        require(
+            before_cap - after_cap == dropped,
+            "Aggregated count-mass accounting failed after the per-cell gene cap",
+        )
+        dropped_fraction = float(dropped / before_cap)
+        signed_library_drift = float((after_cap - source) / source)
+        absolute_library_drift = abs(signed_library_drift)
+        signed_rounding_drift = float((before_cap - expected) / expected)
+        require(
+            np.isfinite(
+                [dropped_fraction, signed_library_drift, signed_rounding_drift]
+            ).all(),
+            "Non-finite count-mass QC",
+        )
+        return {
+            "groups": len(records),
+            "source_input_count_total": source,
+            "model_expected_count_total": expected,
+            "emitted_count_total_before_cap": before_cap,
+            "emitted_count_total_after_cap": after_cap,
+            "dropped_count_total": dropped,
+            "dropped_count_fraction": dropped_fraction,
+            "signed_library_drift_fraction": signed_library_drift,
+            "absolute_library_drift_fraction": absolute_library_drift,
+            "signed_emission_rounding_fraction": signed_rounding_drift,
+        }
+
+    overall = summarize_scope(groups)
+    by_context: dict[str, dict[str, Any]] = {}
+    for context in CONTEXTS:
+        context_groups = [group for group in groups if group.get("context") == context]
+        require(bool(context_groups), f"No count-mass records for context {context}")
+        by_context[context] = summarize_scope(context_groups)
+
+    violations: list[str] = []
+    evaluated_scopes = {"overall": overall, **by_context}
+    for scope, values in evaluated_scopes.items():
+        if values["dropped_count_fraction"] > max_dropped_count_fraction + 1e-12:
+            violations.append(
+                f"{scope}:dropped_count_fraction={values['dropped_count_fraction']:.8f}"
+            )
+        if (
+            values["absolute_library_drift_fraction"]
+            > max_absolute_library_drift_fraction + 1e-12
+        ):
+            violations.append(
+                f"{scope}:absolute_library_drift_fraction="
+                f"{values['absolute_library_drift_fraction']:.8f}"
+            )
+
+    group_dropped = [float(group["count_mass"]["dropped_count_fraction"]) for group in groups]
+    group_library_drift = [
+        float(group["count_mass"]["absolute_library_drift_fraction"])
+        for group in groups
+    ]
+    return {
+        "thresholds": {
+            "max_dropped_count_fraction": max_dropped_count_fraction,
+            "max_absolute_library_drift_fraction": max_absolute_library_drift_fraction,
+            "evaluation_scopes": ["overall", *CONTEXTS],
+        },
+        "overall": overall,
+        "by_context": by_context,
+        "max_group_dropped_count_fraction": max(group_dropped),
+        "max_group_absolute_library_drift_fraction": max(group_library_drift),
+        "violations": violations,
+        "passed": not violations,
     }
 
 
@@ -1012,6 +1186,18 @@ def main() -> None:
                 require(not target_failures, "One or more groups failed target clamp QC")
             else:
                 target_failures = []
+            count_mass_qc = aggregate_count_mass_qc(
+                group_qc,
+                max_dropped_count_fraction=args.max_dropped_count_fraction,
+                max_absolute_library_drift_fraction=(
+                    args.max_absolute_library_drift_fraction
+                ),
+            )
+            require(
+                count_mass_qc["passed"],
+                "Count-mass production gates failed: "
+                + ", ".join(count_mass_qc["violations"]),
+            )
             os.replace(final_temporary, args.output_h5ad)
 
         elapsed = time.time() - started
@@ -1044,6 +1230,10 @@ def main() -> None:
                 "count_emission": args.count_emission,
                 "nb_dispersion": args.nb_dispersion,
                 "max_genes_per_cell": args.max_genes_per_cell,
+                "max_dropped_count_fraction": args.max_dropped_count_fraction,
+                "max_absolute_library_drift_fraction": (
+                    args.max_absolute_library_drift_fraction
+                ),
                 "library_policy": "independent-gene-expectations; no total renormalization",
                 "nnz_cap_policy": "drop-low-count-genes-without-redistribution",
                 "zero_entry_policy": (
@@ -1087,6 +1277,7 @@ def main() -> None:
                 "dropped_counts_without_redistribution": int(
                     sum(item["dropped_counts_without_redistribution"] for item in group_qc)
                 ),
+                "count_mass": count_mass_qc,
             },
             "qc": {"groups": group_qc},
             "provenance": {

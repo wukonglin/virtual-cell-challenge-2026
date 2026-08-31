@@ -122,6 +122,15 @@ could not activate source-zero genes.
    independent sparse integer expectations with deterministic stochastic
    rounding.
 
+The v4 ESM2 head retains 9,522 of 9,675 reliable K562 training targets and
+records the 153 missing-training-embedding exclusions. Coverage of all 300
+requested challenge targets remains mandatory.
+
+Before packaging, the generator enforces exact count-mass accounting and
+overall/per-context caps on sparsification loss and library drift. Packaging
+then re-hashes every response, axis, control, and implementation input against
+the generation manifest before running the official VCC checks.
+
 The corrected full-axis effect prior is
 `41e910252fdfcdabd6193274c86dfd0582f3388c70acd7c833df1626235bbe14`;
 the derived context pseudobulk is
@@ -161,7 +170,8 @@ logs/          Local scheduler logs; generated files are never tracked
 3. Place permitted public support data under `dataset/state_support/extracted/`.
 4. Build the public perturbation-effect cache.
 5. Fit the prior on one allocated H100.
-6. Generate the 360,000-cell prediction on a high-memory CPU node.
+6. Generate the 360,000-cell prediction on an allocated H100 node and package
+   it on a high-memory CPU node.
 7. Require all internal scientific checks and the official `vcc prep --dry-run` checks to pass.
 8. Package, checksum, review, and submit exactly one approved candidate.
 
@@ -194,6 +204,6 @@ All repository prose, code comments, commit messages, issues, and pull requests 
 - [Virtual Cell Challenge](https://virtualcellchallenge.org/)
 - [VCC CLI guide](https://vcc-cli-wiki.virtualcellchallenge.org/)
 - [Arc Institute STATE](https://github.com/ArcInstitute/state), audited at commit `9bbfe78a434a55205e4de834e1ea99f85f7a3add`
-- [Arc Institute cell-eval](https://github.com/ArcInstitute/cell-eval)
+- [Arc Institute cell-eval2](https://github.com/ArcInstitute/cell-eval2)
 
 This repository is private competition work. No public license is granted.

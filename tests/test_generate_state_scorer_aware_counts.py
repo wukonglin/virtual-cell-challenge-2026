@@ -17,6 +17,7 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 from generate_state_scorer_aware_counts import (  # noqa: E402
+    aggregate_count_mass_qc,
     combine_log_fold,
     emit_independent_counts,
     expected_counts,
@@ -131,6 +132,8 @@ class ScorerAwarePolicyTests(unittest.TestCase):
         np.testing.assert_array_equal(matrix.toarray(), np.asarray([[5, 3, 0]]))
         self.assertEqual(qc["dropped_nnz_without_redistribution"], 1)
         self.assertEqual(qc["dropped_counts_without_redistribution"], 3)
+        self.assertEqual(qc["emitted_count_total_before_cap"], 11)
+        self.assertEqual(qc["emitted_count_total_after_cap"], 8)
         self.assertEqual(int(matrix.sum()), 8)
 
     def test_stochastic_emission_is_seed_deterministic(self) -> None:
@@ -151,6 +154,64 @@ class ScorerAwarePolicyTests(unittest.TestCase):
             expectation, np.random.default_rng(42), **kwargs
         )
         np.testing.assert_array_equal(first.toarray(), second.toarray())
+
+
+class CountMassGateTests(unittest.TestCase):
+    @staticmethod
+    def group(context: str, source: int, before: int, after: int) -> dict[str, object]:
+        dropped = before - after
+        return {
+            "context": context,
+            "count_mass": {
+                "source_input_count_total": source,
+                "model_expected_count_total": float(before),
+                "emitted_count_total_before_cap": before,
+                "emitted_count_total_after_cap": after,
+                "dropped_count_total": dropped,
+                "dropped_count_fraction": dropped / before,
+                "absolute_library_drift_fraction": abs(after - source) / source,
+            },
+        }
+
+    def test_mass_gate_reports_exact_context_and_overall_totals(self) -> None:
+        groups = [
+            self.group("A", 100, 100, 95),
+            self.group("B", 100, 100, 98),
+            self.group("C", 100, 100, 97),
+        ]
+        report = aggregate_count_mass_qc(
+            groups,
+            max_dropped_count_fraction=0.10,
+            max_absolute_library_drift_fraction=0.15,
+        )
+        self.assertTrue(report["passed"])
+        self.assertEqual(report["violations"], [])
+        self.assertEqual(report["overall"]["source_input_count_total"], 300)
+        self.assertEqual(report["overall"]["dropped_count_total"], 10)
+        self.assertAlmostEqual(report["overall"]["dropped_count_fraction"], 10 / 300)
+        self.assertEqual(report["by_context"]["B"]["emitted_count_total_after_cap"], 98)
+
+    def test_mass_gate_fails_a_context_even_when_overall_is_within_threshold(self) -> None:
+        groups = [
+            self.group("A", 100, 100, 75),
+            self.group("B", 1_000, 1_000, 1_000),
+            self.group("C", 1_000, 1_000, 1_000),
+        ]
+        report = aggregate_count_mass_qc(
+            groups,
+            max_dropped_count_fraction=0.10,
+            max_absolute_library_drift_fraction=0.15,
+        )
+        self.assertFalse(report["passed"])
+        self.assertTrue(
+            any(value.startswith("A:dropped_count_fraction=") for value in report["violations"])
+        )
+        self.assertTrue(
+            any(
+                value.startswith("A:absolute_library_drift_fraction=")
+                for value in report["violations"]
+            )
+        )
 
 
 class AuxiliaryArtifactTests(unittest.TestCase):
