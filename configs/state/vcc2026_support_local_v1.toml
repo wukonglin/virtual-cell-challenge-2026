@@ -1,0 +1,14 @@
+# Node-local VCC 2026 STATE support-set split.
+# The corresponding Slurm jobs stage official H5 files under this fixed path
+# before training and remove only that staging directory on exit.
+
+[datasets]
+vcc_support = "/tmp/vcc_state_support_local_v1/{competition_train,k562_gwps,rpe1,jurkat,k562,hepg2}.h5"
+
+[training]
+vcc_support = "train"
+
+[zeroshot]
+"vcc_support.hepg2" = "test"
+
+[fewshot]

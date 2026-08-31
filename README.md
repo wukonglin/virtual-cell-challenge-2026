@@ -14,9 +14,9 @@ For each anonymous cell context and CRISPRi target, predict a distribution of po
 
 The evaluation cell lines have no released perturbation labels. Models must therefore learn perturbation effects from permitted external data and adapt them to each released non-targeting-control population.
 
-## Current baseline
+## Tracked baselines
 
-The first tracked model is a conservative context-weighted Bayesian public-prior baseline. It combines:
+The first submitted model is a conservative context-weighted Bayesian public-prior baseline. It combines:
 
 1. batch-matched effects from public Perturb-seq support data;
 2. context weights estimated from the released basal control profiles;
@@ -37,11 +37,33 @@ The official validation submission was published on 2026-08-26:
 
 Ranks change as teams submit. Scores should only be compared when the partition, panel, and anchor set match. See [the baseline report](docs/BASELINE_RESULTS.md) for the six component scores and scientific interpretation.
 
+The second tracked model is a real STATE adaptation rather than an ESM-weighted
+Bayesian proxy. It trains the 162-million-parameter `state_sm` architecture for
+20,000 optimizer steps with:
+
+1. all six official STATE support matrices and the 5,120-dimensional ESM2
+   perturbation embeddings;
+2. HepG2 sealed as a zero-shot context for checkpoint selection;
+3. node-local HDF5 staging and 16 loader workers on one H100;
+4. strict 300-of-300 target-embedding coverage checks;
+5. a bounded-memory adapter from the 18,080-gene STATE axis to the official
+   18,533-gene VCC axis;
+6. real A/B/C control cells as raw-count anchors after STATE inference.
+
+The adapter retains at most 161 modeled effects per context-target group and
+keeps all 456 challenge-only genes at their matched-control values. Label-free
+response-collapse diagnostics and the official VCC dry run must pass before a
+package can be submitted. The pinned 2026 STATE repository calls this model
+`state_sm`; the saved output in the older official notebook has the same
+128-cell, 672-hidden, four-layer architecture even though its source cell says
+`model=state`.
+
 ## Repository layout
 
 ```text
-scripts/       Data audits, public-effect fitting, prior fitting, and generation
-slurm/         H100 fitting, CPU packaging, and infrastructure smoke jobs
+configs/       STATE support-set splits used by local and node-local runs
+scripts/       Data audits, STATE adapters, prior fitting, QC, and generation
+slurm/         H100 training/inference, CPU packaging, and smoke jobs
 docs/          Project plan, baseline report, and reproduction instructions
 requirements/  Recorded software environments for modeling, CLI, and slides
 results/       Small sanitized metric snapshots only

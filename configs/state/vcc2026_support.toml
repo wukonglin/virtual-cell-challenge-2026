@@ -1,0 +1,17 @@
+# VCC 2026 STATE support-set split.
+#
+# Paths are relative to the repository root. Launch training from that root so
+# cell-load can expand the brace expression deterministically.
+
+[datasets]
+vcc_support = "dataset/state_support/state_compatible/{competition_train,k562_gwps,rpe1,jurkat,k562,hepg2}.h5"
+
+[training]
+vcc_support = "train"
+
+# Keep HepG2 sealed during model fitting. The training code uses the test split
+# as validation when no explicit validation split is present.
+[zeroshot]
+"vcc_support.hepg2" = "test"
+
+[fewshot]

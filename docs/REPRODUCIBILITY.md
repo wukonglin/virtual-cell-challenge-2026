@@ -2,9 +2,11 @@
 
 ## Environment separation
 
-The working cluster uses two environments:
+The working cluster uses three isolated environments:
 
 - Python 3.10 with CUDA PyTorch for model fitting and generation;
+- Python 3.11 with `arc-state==0.11.3`, CUDA PyTorch, `cell-load`, and Lightning
+  for STATE training and inference;
 - Python 3.11 with `vcc-cli==0.1.0` for official validation, packaging, and submission.
 
 Recorded package versions are in `requirements/`. Install the CUDA build appropriate for the target cluster rather than assuming a generic PyPI wheel matches the H100 driver.
@@ -44,6 +46,18 @@ git -C external/state checkout 9bbfe78a434a55205e4de834e1ea99f85f7a3add
 ```
 
 `external/` remains untracked.
+
+Install STATE in an isolated Python 3.11 environment:
+
+```bash
+python3.11 -m venv .venv-state
+.venv-state/bin/pip install -e external/state
+```
+
+The cluster compute image provides the Python runtime but not `Python.h`. The
+matching Rocky Linux `python3.11-devel` RPM may be extracted without root under
+`.venv-state-headers/`; the Slurm scripts expose that local include directory
+through `CPATH`. No system package is modified.
 
 ## Local variables
 
@@ -98,6 +112,50 @@ sbatch --dependency="afterok:$fit_job" --export=ALL \
 ```
 
 This job generates the complete sparse H5AD, asserts internal scientific and schema checks, runs official `vcc prep --dry-run`, builds the `.vcc`, validates the container, and records checksums. It refuses to overwrite an existing production artifact.
+
+## STATE production path
+
+The official support archive has inconsistent `uns/log1p` markers across files.
+Create tiny external-link wrappers instead of modifying or duplicating the
+official matrices:
+
+```bash
+.venv-state/bin/python scripts/prepare_state_support_links.py
+```
+
+Run the 20-step H100 smoke test first:
+
+```bash
+state_smoke_job=$(sbatch --parsable slurm/h100_train_state_smoke_v0.sbatch)
+```
+
+The production job stages the six support H5 files on node-local storage,
+recreates the metadata wrappers there, trains `state_sm` for 20,000 steps, and
+selects `best.ckpt` by the held-out HepG2 validation loss:
+
+```bash
+state_train_job=$(sbatch --parsable \
+  --dependency="afterok:$state_smoke_job" \
+  slurm/h100_train_state_sm_v0.sbatch)
+```
+
+Run bounded-memory inference on exact 128-cell sets and then package only if all
+prior-structure gates pass:
+
+```bash
+state_infer_job=$(sbatch --parsable \
+  --dependency="afterok:$state_train_job" \
+  slurm/h100_infer_state_20k_best_v0.sbatch)
+
+sbatch --dependency="afterok:$state_infer_job" \
+  slurm/cpu_generate_package_state_20k_best_v0.sbatch
+```
+
+The STATE adapter performs support-axis CP10K/log1p normalization, checks all
+300 ESM embeddings, maps 18,077 shared genes back to the official axis, assigns
+zero modeled delta to 456 challenge-only genes, and writes the same sparse
+effect-prior contract consumed by the raw-count generator. Never submit STATE's
+continuous normalized output directly.
 
 ## Pre-submission review
 
