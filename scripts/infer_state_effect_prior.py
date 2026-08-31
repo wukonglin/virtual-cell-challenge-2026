@@ -115,6 +115,15 @@ def parse_args() -> argparse.Namespace:
         "--effect-scale", type=float, default=1.0, help="Scale all modeled deltas."
     )
     parser.add_argument(
+        "--effect-reference",
+        choices=("model-control", "input-control"),
+        default="model-control",
+        help=(
+            "Subtract STATE's non-targeting prediction to cancel reconstruction bias, "
+            "or subtract the input basal mean directly."
+        ),
+    )
+    parser.add_argument(
         "--effect-clip",
         type=float,
         default=0.60,
@@ -242,24 +251,31 @@ def load_var_dims(path: Path, support_genes: list[str]) -> dict[str, Any]:
     return var_dims
 
 
-def load_target_embeddings(path: Path, targets: list[str]) -> dict[str, torch.Tensor]:
+def load_perturbation_embeddings(
+    path: Path, targets: list[str]
+) -> dict[str, torch.Tensor]:
     raw_map = torch.load(path, map_location="cpu", weights_only=False)
     require(isinstance(raw_map, dict), f"Expected a dictionary in {path}")
     embedding_map = {str(key): value for key, value in raw_map.items()}
-    missing = [target for target in targets if target not in embedding_map]
+    required_names = [CONTROL_LABEL, *targets]
+    missing = [name for name in required_names if name not in embedding_map]
     require(
         not missing,
-        f"ESM perturbation map misses {len(missing)} official targets: {missing[:10]}",
+        f"Perturbation map misses {len(missing)} required entries: {missing[:10]}",
     )
     result: dict[str, torch.Tensor] = {}
-    for target in targets:
-        tensor = torch.as_tensor(embedding_map[target], dtype=torch.float32).reshape(-1)
+    for name in required_names:
+        tensor = torch.as_tensor(embedding_map[name], dtype=torch.float32).reshape(-1)
         require(
             tensor.numel() == EXPECTED_PERT_DIM,
-            f"Embedding for {target} has dimension {tensor.numel()}, expected 5120",
+            f"Embedding for {name} has dimension {tensor.numel()}, expected 5120",
         )
-        require(bool(torch.isfinite(tensor).all()), f"Embedding for {target} is not finite")
-        result[target] = tensor.contiguous()
+        require(bool(torch.isfinite(tensor).all()), f"Embedding for {name} is not finite")
+        result[name] = tensor.contiguous()
+    require(
+        float(torch.linalg.vector_norm(result[CONTROL_LABEL])) == 0.0,
+        "Expected the saved non-targeting perturbation embedding to be the zero vector",
+    )
     return result
 
 
@@ -499,7 +515,7 @@ def infer_context(
     device: torch.device,
     args: argparse.Namespace,
     context: str,
-) -> tuple[np.ndarray, list[dict[str, float]]]:
+) -> tuple[np.ndarray, list[dict[str, float]], dict[str, Any]]:
     require(
         control_sets.shape == (args.sets_per_context, args.set_size, EXPECTED_SUPPORT_GENES),
         f"Unexpected control tensor shape for context {context}: {control_sets.shape}",
@@ -513,45 +529,67 @@ def infer_context(
     effects = np.empty((len(targets), EXPECTED_SUPPORT_GENES), dtype=np.float32)
     prediction_qc: list[dict[str, float]] = []
 
+    def predict_mean(
+        pert_vector: torch.Tensor, pert_name: str
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        prediction_sum = torch.zeros(
+            EXPECTED_SUPPORT_GENES, device=device, dtype=torch.float32
+        )
+        prediction_min = torch.full((), float("inf"), device=device)
+        prediction_max = torch.full((), float("-inf"), device=device)
+        for basal in basal_tensors:
+            pert = pert_vector.unsqueeze(0).expand(args.set_size, -1)
+            batch = {
+                "ctrl_cell_emb": basal,
+                "pert_emb": pert,
+                "pert_name": [pert_name] * args.set_size,
+            }
+            with autocast_context(args, device):
+                output = model.predict_step(batch, 0, padded=False)
+            require(isinstance(output, dict) and "preds" in output, "STATE output lacks preds")
+            prediction = output["preds"]
+            require(
+                tuple(prediction.shape) == (args.set_size, EXPECTED_SUPPORT_GENES),
+                f"STATE returned shape {tuple(prediction.shape)} for {context}/{pert_name}",
+            )
+            prediction = prediction.float()
+            prediction_sum += prediction.sum(dim=0)
+            prediction_min = torch.minimum(prediction_min, prediction.amin())
+            prediction_max = torch.maximum(prediction_max, prediction.amax())
+            del prediction, output
+        require(
+            bool(torch.isfinite(prediction_sum).all()),
+            f"Non-finite STATE output for {context}/{pert_name}",
+        )
+        prediction_mean = prediction_sum / float(args.sets_per_context * args.set_size)
+        return prediction_mean, prediction_min, prediction_max
+
     with torch.inference_mode():
+        if args.effect_reference == "model-control":
+            control_vector = embeddings[CONTROL_LABEL].to(
+                device=device, dtype=torch.float32
+            )
+            reference_mean, control_min, control_max = predict_mean(
+                control_vector, CONTROL_LABEL
+            )
+        else:
+            reference_mean = basal_mean
+            control_min = basal_mean.amin()
+            control_max = basal_mean.amax()
+
         for target_index, target in enumerate(targets):
             pert_vector = embeddings[target].to(device=device, dtype=torch.float32)
-            prediction_sum = torch.zeros(
-                EXPECTED_SUPPORT_GENES, device=device, dtype=torch.float32
+            prediction_mean, prediction_min_tensor, prediction_max_tensor = predict_mean(
+                pert_vector, target
             )
-            prediction_min_tensor = torch.full((), float("inf"), device=device)
-            prediction_max_tensor = torch.full((), float("-inf"), device=device)
-            for basal in basal_tensors:
-                pert = pert_vector.unsqueeze(0).expand(args.set_size, -1)
-                batch = {
-                    "ctrl_cell_emb": basal,
-                    "pert_emb": pert,
-                    "pert_name": [target] * args.set_size,
-                }
-                with autocast_context(args, device):
-                    output = model.predict_step(batch, 0, padded=False)
-                require(isinstance(output, dict) and "preds" in output, "STATE output lacks preds")
-                prediction = output["preds"]
-                require(
-                    tuple(prediction.shape) == (args.set_size, EXPECTED_SUPPORT_GENES),
-                    f"STATE returned shape {tuple(prediction.shape)} for {context}/{target}",
-                )
-                prediction = prediction.float()
-                prediction_sum += prediction.sum(dim=0)
-                prediction_min_tensor = torch.minimum(prediction_min_tensor, prediction.amin())
-                prediction_max_tensor = torch.maximum(prediction_max_tensor, prediction.amax())
-                del prediction, output
-            require(
-                bool(torch.isfinite(prediction_sum).all()),
-                f"Non-finite STATE output for {context}/{target}",
-            )
-            prediction_mean = prediction_sum / float(args.sets_per_context * args.set_size)
-            effects[target_index] = (prediction_mean - basal_mean).cpu().numpy()
+            effects[target_index] = (prediction_mean - reference_mean).cpu().numpy()
             prediction_qc.append(
                 {
                     "prediction_min": float(prediction_min_tensor.item()),
                     "prediction_max": float(prediction_max_tensor.item()),
-                    "delta_abs_max": float(torch.max(torch.abs(prediction_mean - basal_mean)).item()),
+                    "delta_abs_max": float(
+                        torch.max(torch.abs(prediction_mean - reference_mean)).item()
+                    ),
                 }
             )
             if (target_index + 1) % 25 == 0 or target_index + 1 == len(targets):
@@ -559,7 +597,15 @@ def infer_context(
                     f"[{context}] inferred {target_index + 1}/{len(targets)} targets",
                     flush=True,
                 )
-    return effects, prediction_qc
+    reference_qc = {
+        "effect_reference": args.effect_reference,
+        "reference_prediction_min": float(control_min.item()),
+        "reference_prediction_max": float(control_max.item()),
+        "reference_minus_input": summarize(
+            (reference_mean - basal_mean).detach().cpu().numpy()
+        ),
+    }
+    return effects, prediction_qc, reference_qc
 
 
 def validate_args(args: argparse.Namespace) -> None:
@@ -650,7 +696,7 @@ def main() -> None:
     require(all(target in support_gene_set for target in targets), "A target is absent from support genes")
 
     var_dims = load_var_dims(var_dims_path, support_genes)
-    embeddings = load_target_embeddings(pert_map_path, targets)
+    embeddings = load_perturbation_embeddings(pert_map_path, targets)
 
     device = torch.device(args.device)
     if args.require_cuda:
@@ -693,9 +739,10 @@ def main() -> None:
             args.seed + context_index,
         )
         control_qc[context] = context_control_qc
-        raw_context_effects, prediction_qc = infer_context(
+        raw_context_effects, prediction_qc, reference_qc = infer_context(
             model, control_sets, targets, embeddings, device, args, context
         )
+        control_qc[context]["state_reference"] = reference_qc
         del control_sets
         for target_index, target in enumerate(targets):
             sparse_effect, effect_qc = sparsify_effect(
@@ -756,6 +803,7 @@ def main() -> None:
             "sets_per_context": args.sets_per_context,
             "cells_per_context": args.set_size * args.sets_per_context,
             "normalization": "support-axis CP10K followed by log1p",
+            "effect_reference": args.effect_reference,
             "top_k_including_target": args.top_k,
             "min_abs_effect": args.min_abs_effect,
             "effect_scale": args.effect_scale,
@@ -773,8 +821,11 @@ def main() -> None:
             "overlap_genes": overlap,
             "current_only_zero_delta_genes": len(current_only_indices),
             "support_only_genes": int(np.count_nonzero(support_to_current < 0)),
-            "esm_target_coverage": len(embeddings),
+            "esm_target_coverage": sum(target in embeddings for target in targets),
             "esm_dimension": EXPECTED_PERT_DIM,
+            "control_embedding_l2": float(
+                torch.linalg.vector_norm(embeddings[CONTROL_LABEL]).item()
+            ),
         },
         "qc": {
             "controls": control_qc,

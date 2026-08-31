@@ -59,6 +59,7 @@ nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv,nohead
   --require-cuda \
   --require-h100 \
   --precision bfloat16 \
+  --effect-reference model-control \
   --sets-per-context 4 \
   --top-k 161 \
   --target-strategy blend \
