@@ -398,17 +398,28 @@ def main() -> None:
     prior_targets = prior["targets"].astype(str).tolist()
     genes = prior["genes"].astype(str).tolist()
     effects = prior["effects"].astype(np.float32)
+    effect_space_present = "effect_space" in prior.files
+    effect_target_sum_present = "effect_target_sum" in prior.files
+    effect_gene_mask_present = "effect_gene_mask" in prior.files
+    explicit_state_contract = all(
+        (effect_space_present, effect_target_sum_present, effect_gene_mask_present)
+    )
+    if (
+        any((effect_space_present, effect_target_sum_present, effect_gene_mask_present))
+        and not explicit_state_contract
+    ):
+        raise ValueError(
+            "effect_space, effect_target_sum, and effect_gene_mask must appear together"
+        )
     prior_effect_space = (
         str(prior["effect_space"].item())
-        if "effect_space" in prior.files
+        if explicit_state_contract
         else "legacy-log1p-cp10k-delta"
     )
     prior_effect_target_sum = (
-        float(prior["effect_target_sum"].item())
-        if "effect_target_sum" in prior.files
-        else None
+        float(prior["effect_target_sum"].item()) if explicit_state_contract else None
     )
-    if "effect_gene_mask" in prior.files:
+    if explicit_state_contract:
         raw_effect_gene_mask = np.asarray(prior["effect_gene_mask"])
         if raw_effect_gene_mask.shape != (len(genes),):
             raise ValueError("prior effect_gene_mask has the wrong shape")
@@ -417,17 +428,19 @@ def main() -> None:
         effect_gene_mask = raw_effect_gene_mask.astype(np.bool_)
     else:
         effect_gene_mask = np.ones(len(genes), dtype=np.bool_)
-    if prior_effect_target_sum is not None and not np.isclose(
+    if explicit_state_contract and not np.isclose(
         prior_effect_target_sum, args.effect_baseline_target_sum, rtol=0.0, atol=1e-8
     ):
         raise ValueError(
             "prior effect_target_sum does not match --effect-baseline-target-sum: "
             f"{prior_effect_target_sum} != {args.effect_baseline_target_sum}"
         )
-    if prior_effect_target_sum is not None and prior_effect_space != STATE_EFFECT_SPACE:
+    if explicit_state_contract and prior_effect_space != STATE_EFFECT_SPACE:
         raise ValueError(f"unsupported explicit prior effect space: {prior_effect_space}")
-    if prior_effect_target_sum is not None and "effect_gene_mask" not in prior.files:
-        raise ValueError("an explicit STATE prior must include effect_gene_mask")
+    if not explicit_state_contract and not np.isclose(
+        args.effect_baseline_target_sum, 10_000.0, rtol=0.0, atol=1e-8
+    ):
+        raise ValueError("legacy Bayesian priors must use a 10,000-count baseline")
     if prior_contexts != list(CONTEXTS):
         raise ValueError("prior context order mismatch")
     official_targets = pd.read_csv(args.controls_dir / "pert_counts.csv")[
@@ -442,7 +455,7 @@ def main() -> None:
         )
     if not np.isfinite(effects).all():
         raise ValueError("prior contains non-finite effects")
-    if prior_effect_target_sum is not None:
+    if explicit_state_contract:
         if int(np.count_nonzero(effect_gene_mask)) != 18_077:
             raise ValueError("STATE effect_gene_mask must contain 18,077 shared genes")
         if np.count_nonzero(effects[:, :, ~effect_gene_mask]):

@@ -33,8 +33,12 @@ for required_path in \
   "$MODEL_DIR/pert_onehot_map.pt" \
   "$MODEL_DIR/var_dims.pkl" \
   scripts/infer_state_effect_prior.py \
+  dataset/state_support/extracted/gene_names.csv \
   dataset/controls/gene_names.csv \
-  dataset/controls/pert_counts.csv; do
+  dataset/controls/pert_counts.csv \
+  dataset/controls/context_A.h5ad \
+  dataset/controls/context_B.h5ad \
+  dataset/controls/context_C.h5ad; do
   if [[ ! -r "$required_path" ]]; then
     echo "Missing required input: $required_path" >&2
     exit 2

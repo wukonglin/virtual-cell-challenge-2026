@@ -898,7 +898,7 @@ def main() -> None:
         ]
     )
     payload = {
-        "schema": "vcc-state-effect-prior-v1",
+        "schema": "vcc-state-effect-prior-v2",
         "created_utc_epoch": time.time(),
         "elapsed_seconds": elapsed,
         "command": [sys.executable, *sys.argv],

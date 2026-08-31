@@ -2,10 +2,10 @@
 """Audit and optionally blend sparse perturbation-effect priors.
 
 The submission generator consumes a dense ``effects`` tensor whose non-zero
-entries are sparse log1p(CP10K)-space effects.  This utility validates that
-contract, reports label-free diagnostics that can expose collapsed STATE
-predictions, and can create a convex STATE/Bayesian ensemble without exceeding
-the generator's per-group sparsity limit.
+entries are sparse log1p-space effects with an explicit or legacy normalization
+contract. This utility validates that contract, reports label-free diagnostics
+that can expose collapsed STATE predictions, and can create a convex ensemble
+only when both priors use the same effect space.
 
 The diagnostics are not substitutes for VCC scores.  In particular, no hidden
 challenge labels are available locally.  They are pre-submission safety checks
@@ -85,6 +85,10 @@ class EffectPrior:
     contexts: tuple[str, ...]
     targets: tuple[str, ...]
     genes: tuple[str, ...]
+    effect_space: str
+    effect_target_sum: float | None
+    effect_gene_mask: np.ndarray
+    explicit_effect_contract: bool
 
 
 def load_prior(path: Path) -> EffectPrior:
@@ -96,10 +100,40 @@ def load_prior(path: Path) -> EffectPrior:
         contexts = tuple(archive["contexts"].astype(str).tolist())
         targets = tuple(archive["targets"].astype(str).tolist())
         genes = tuple(archive["genes"].astype(str).tolist())
+        metadata_present = tuple(
+            key in archive.files
+            for key in ("effect_space", "effect_target_sum", "effect_gene_mask")
+        )
+        if any(metadata_present) and not all(metadata_present):
+            raise ValueError(f"{path}: incomplete effect-space metadata")
+        explicit_effect_contract = all(metadata_present)
+        if explicit_effect_contract:
+            effect_space = str(archive["effect_space"].item())
+            effect_target_sum = float(archive["effect_target_sum"].item())
+            raw_effect_gene_mask = np.asarray(archive["effect_gene_mask"])
+            if raw_effect_gene_mask.shape != (len(genes),):
+                raise ValueError(f"{path}: effect_gene_mask has the wrong shape")
+            if not np.isin(raw_effect_gene_mask, (False, True)).all():
+                raise ValueError(f"{path}: effect_gene_mask must be boolean-like")
+            effect_gene_mask = raw_effect_gene_mask.astype(np.bool_)
+        else:
+            effect_space = "legacy-log1p-cp10k-delta"
+            effect_target_sum = None
+            effect_gene_mask = np.ones(len(genes), dtype=np.bool_)
     expected = (len(contexts), len(targets), len(genes))
     if effects.shape != expected:
         raise ValueError(f"{path}: effects shape {effects.shape} != {expected}")
-    return EffectPrior(path, effects, contexts, targets, genes)
+    return EffectPrior(
+        path,
+        effects,
+        contexts,
+        targets,
+        genes,
+        effect_space,
+        effect_target_sum,
+        effect_gene_mask,
+        explicit_effect_contract,
+    )
 
 
 def target_indices(prior: EffectPrior) -> np.ndarray:
@@ -265,6 +299,12 @@ def audit_prior(
         "path": str(prior.path),
         "sha256": sha256_file(prior.path),
         "shape": list(effects.shape),
+        "effect_contract": {
+            "space": prior.effect_space,
+            "target_sum": prior.effect_target_sum,
+            "normalization_genes": int(np.count_nonzero(prior.effect_gene_mask)),
+            "explicit": prior.explicit_effect_contract,
+        },
         "hard_checks": hard_checks,
         "failed_hard_checks": sorted(
             name for name, passed in hard_checks.items() if not passed
@@ -331,6 +371,11 @@ def compare_priors(primary: EffectPrior, other: EffectPrior) -> dict[str, Any]:
     return {
         "primary": str(primary.path),
         "other": str(other.path),
+        "same_effect_contract": bool(
+            primary.effect_space == other.effect_space
+            and primary.effect_target_sum == other.effect_target_sum
+            and np.array_equal(primary.effect_gene_mask, other.effect_gene_mask)
+        ),
         "off_target_cosine": quantiles(
             np.asarray(values), (0.0, 0.1, 0.5, 0.9, 1.0)
         ),
@@ -363,6 +408,12 @@ def build_ensemble(
         or primary.genes != other.genes
     ):
         raise ValueError("ensemble inputs do not share identical axes")
+    if (
+        primary.effect_space != other.effect_space
+        or primary.effect_target_sum != other.effect_target_sum
+        or not np.array_equal(primary.effect_gene_mask, other.effect_gene_mask)
+    ):
+        raise ValueError("cannot ensemble priors with different effect-space contracts")
 
     target_idx = target_indices(primary)
     blended = alpha * primary.effects + (1.0 - alpha) * other.effects
@@ -456,16 +507,26 @@ def main() -> None:
             args.minimum_abs_effect,
         )
         args.ensemble_output.parent.mkdir(parents=True, exist_ok=True)
-        atomic_savez(
-            args.ensemble_output,
-            effects=effects,
-            contexts=np.asarray(priors[0].contexts),
-            targets=np.asarray(priors[0].targets),
-            genes=np.asarray(priors[0].genes),
-            selected_counts=selected_counts,
-            ensemble_alpha=np.float32(args.ensemble_alpha),
-            ensemble_sources=np.asarray([str(prior.path) for prior in priors]),
-        )
+        ensemble_arrays: dict[str, Any] = {
+            "effects": effects,
+            "contexts": np.asarray(priors[0].contexts),
+            "targets": np.asarray(priors[0].targets),
+            "genes": np.asarray(priors[0].genes),
+            "selected_counts": selected_counts,
+            "ensemble_alpha": np.float32(args.ensemble_alpha),
+            "ensemble_sources": np.asarray(
+                [str(prior.path) for prior in priors]
+            ),
+        }
+        if priors[0].explicit_effect_contract:
+            ensemble_arrays.update(
+                effect_space=np.asarray(priors[0].effect_space),
+                effect_target_sum=np.asarray(
+                    priors[0].effect_target_sum, dtype=np.float64
+                ),
+                effect_gene_mask=priors[0].effect_gene_mask,
+            )
+        atomic_savez(args.ensemble_output, **ensemble_arrays)
         ensemble = load_prior(args.ensemble_output)
         ensemble_report = audit_prior(
             ensemble,

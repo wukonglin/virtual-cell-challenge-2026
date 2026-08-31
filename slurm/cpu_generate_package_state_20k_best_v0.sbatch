@@ -72,6 +72,7 @@ if [[ "$tmp_available_bytes" -lt 53687091200 ]]; then
 fi
 
 "$VCC_PY" - "$PRIOR_JSON" "$PROJECT_DIR" <<'PY'
+import hashlib
 import json
 import pathlib
 import sys
@@ -82,6 +83,7 @@ configuration = report["configuration"]
 model = report["model"]
 provenance = report["provenance"]
 
+assert report["schema"] == "vcc-state-effect-prior-v2"
 assert configuration["effect_reference"] == "model-control"
 assert configuration["precision"] == "float32"
 assert configuration["input_normalization"] == "log1p-raw"
@@ -93,6 +95,8 @@ assert configuration["effect_normalization_genes"] == 18_077
 assert configuration["sets_per_context"] == 4
 assert configuration["cells_per_context"] == 512
 assert configuration["top_k_including_target"] == 161
+assert configuration["min_abs_effect"] == 0.01
+assert configuration["effect_clip"] == 0.60
 for context in "ABC":
     assert report["qc"]["controls"][context]["state_reference"]["bulk_axis_genes"] == 18_077
 assert model["cell_sentence_len"] == 128
@@ -103,9 +107,16 @@ assert model["parameters"] > 150_000_000
 assert pathlib.Path(provenance["checkpoint"]["path"]).name == "best.ckpt"
 assert provenance["repository_commit"] is not None
 assert provenance["state_source_commit"] is not None
-assert pathlib.Path(provenance["output_npz"]["path"]).resolve() == pathlib.Path(
+prior_path = pathlib.Path(
     project_dir / "artifacts/state_effect_prior_20k_best_v0.npz"
 )
+assert pathlib.Path(provenance["output_npz"]["path"]).resolve() == prior_path
+assert provenance["output_npz"]["size_bytes"] == prior_path.stat().st_size
+digest = hashlib.sha256()
+with prior_path.open("rb") as handle:
+    while block := handle.read(8 << 20):
+        digest.update(block)
+assert provenance["output_npz"]["sha256"] == digest.hexdigest()
 print("STATE inference provenance assertions passed")
 PY
 
