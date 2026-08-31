@@ -852,6 +852,12 @@ def validate_backed_candidate(
         expected_groups = pd.MultiIndex.from_product(
             [CONTEXTS, targets], names=["context", "target_gene"]
         )
+        expected_group_keys = {
+            (str(context), str(target)) for context, target in expected_groups
+        }
+        observed_group_keys = {
+            (str(context), str(target)) for context, target in group_sizes.index
+        }
         matrix = prediction.X
         observed_nnz = int(matrix.group["data"].shape[0])
         data_dtype = np.dtype(matrix.group["data"].dtype)
@@ -863,7 +869,11 @@ def validate_backed_candidate(
             "obs_names_unique": bool(prediction.obs_names.is_unique),
             "contexts_exact": set(prediction.obs["context"].astype(str)) == set(CONTEXTS),
             "targets_exact": set(prediction.obs["target_gene"].astype(str)) == set(targets),
-            "groups_exact": list(group_sizes.index) == list(expected_groups),
+            # AnnData serializes string columns as categoricals and may reorder
+            # category levels lexicographically.  Group membership is strict,
+            # but categorical level order is not part of the VCC contract.
+            "groups_exact": observed_group_keys == expected_group_keys
+            and len(group_sizes) == len(expected_groups),
             "cells_per_group_exact": bool((group_sizes == cells_per_group).all()),
             "no_controls": CONTROL_LABEL
             not in set(prediction.obs["target_gene"].astype(str)),
