@@ -274,6 +274,46 @@ def perturb_block(
                 raise OverflowError("generated count exceeds int32")
             values[:, gene] = updated.astype(np.int32)
 
+    target_position = int(np.where(genes == target_index)[0][0])
+    target_before = selected_before[:, target_position]
+    target_current = values[:, target_index].astype(np.int64, copy=True)
+    target_before_sum = int(target_before.sum())
+    target_current_sum = int(target_current.sum())
+    target_cap_applied = False
+    if target_before_sum >= 20 and target_current_sum > int(
+        np.floor(0.40 * target_before_sum)
+    ):
+        # Low-count targets can exceed the aggregate QC threshold after
+        # independent binomial thinning.  Remove an exact, uniformly sampled
+        # subset of the remaining target molecules so the intended 20%
+        # knockdown fraction is honored without changing any other gene.
+        desired_sum = min(
+            target_current_sum,
+            int(round(args.target_remaining_fraction * target_before_sum)),
+        )
+        remaining_to_remove = target_current_sum - desired_sum
+        remaining_total = target_current_sum
+        for cell_index, cell_count in enumerate(target_current):
+            if remaining_to_remove <= 0:
+                break
+            if cell_index == len(target_current) - 1:
+                remove_count = remaining_to_remove
+            else:
+                remove_count = int(
+                    rng.hypergeometric(
+                        int(cell_count),
+                        int(remaining_total - cell_count),
+                        int(remaining_to_remove),
+                    )
+                )
+            target_current[cell_index] -= remove_count
+            remaining_to_remove -= remove_count
+            remaining_total -= int(cell_count)
+        if remaining_to_remove != 0:
+            raise RuntimeError("exact target-transcript thinning did not converge")
+        values[:, target_index] = target_current.astype(np.int32)
+        target_cap_applied = True
+
     selected_after = values[:, genes]
     realized_delta = selected_after.sum(axis=0, dtype=np.int64) - selected_before.sum(
         axis=0, dtype=np.int64
@@ -293,8 +333,6 @@ def perturb_block(
     result.eliminate_zeros()
     result.sort_indices()
     generated_libraries = np.asarray(result.sum(axis=1)).ravel().astype(np.int64)
-    target_position = int(np.where(genes == target_index)[0][0])
-    target_before = selected_before[:, target_position]
     target_after = selected_after[:, target_position]
     return result, {
         **fold_qc,
@@ -306,6 +344,7 @@ def perturb_block(
         ),
         "target_sum_before": int(target_before.sum()),
         "target_sum_after": int(target_after.sum()),
+        "target_qc_cap_applied": target_cap_applied,
         "target_remaining_fraction": float(
             target_after.sum() / max(target_before.sum(), 1)
         ),
@@ -623,7 +662,12 @@ def main() -> None:
         [item["off_target_fold_clipped_fraction"] for item in group_qc]
     )
     target_qc_failures = [
-        f"{item['context']}|{item['target_gene']}"
+        (
+            f"{item['context']}|{item['target_gene']}"
+            f" (before={item['target_sum_before']},"
+            f" after={item['target_sum_after']},"
+            f" fraction={item['target_remaining_fraction']:.6f})"
+        )
         for item in group_qc
         if item["target_sum_before"] >= 20
         and not (0.0 <= item["target_remaining_fraction"] <= 0.40)
@@ -675,7 +719,8 @@ def main() -> None:
         )
     if target_qc_failures:
         raise RuntimeError(
-            f"{len(target_qc_failures)} groups failed target-knockdown QC"
+            f"{len(target_qc_failures)} groups failed target-knockdown QC: "
+            + "; ".join(target_qc_failures[:10])
         )
     if np.max(np.abs(ratios - 1.0)) > 0.10:
         raise RuntimeError("generated group median library depth differs by more than 10%")

@@ -38,22 +38,42 @@ The official validation submission was published on 2026-08-26:
 Ranks change as teams submit. Scores should only be compared when the partition, panel, and anchor set match. See [the baseline report](docs/BASELINE_RESULTS.md) for the six component scores and scientific interpretation.
 
 The second tracked model is a real STATE adaptation rather than an ESM-weighted
-Bayesian proxy. It trains the 162-million-parameter `state_sm` architecture for
-20,000 optimizer steps with:
+Bayesian proxy. H100 training job `859832` completed 20,000 optimizer steps for
+the 162,626,484-parameter `state_sm` architecture. It uses:
 
 1. all six official STATE support matrices and the 5,120-dimensional ESM2
    perturbation embeddings;
-2. HepG2 sealed as a zero-shot context for checkpoint selection;
+2. HepG2 sealed as a zero-shot validation context;
 3. node-local HDF5 staging and 16 loader workers on one H100;
 4. strict 300-of-300 target-embedding coverage checks;
-5. a bounded-memory adapter from the 18,080-gene STATE axis to the official
-   18,533-gene VCC axis;
-6. real A/B/C control cells as raw-count anchors after STATE inference.
+5. an explicit validation-aligned checkpoint archive because the upstream
+   callback can save weights before validation at the same step boundary;
+6. a bounded-memory adapter from the 18,080-gene STATE axis to the official
+   18,533-gene VCC axis.
 
-The adapter retains at most 161 modeled effects per context-target group and
-keeps all 456 challenge-only genes at their matched-control values. Label-free
-response-collapse diagnostics and the official VCC dry run must pass before a
-package can be submitted. The pinned 2026 STATE repository calls this model
+The minimum recorded validation loss was `1.666636586` at step 16,000, so
+`step16000.ckpt` is the selected checkpoint; steps 18,000 and 20,000 were worse.
+An earlier effect-prior inference on H100 job `860433` completed all 900
+context-target pairs, but that pseudobulk bridge is diagnostic rather than the
+preferred count-generation path.
+
+The preferred adapter runs target and non-targeting STATE predictions on the
+same raw-log1p control-cell chunks and transfers only their paired cellwise
+residuals. Non-target modeled residuals are smoothly bounded as
+`0.6 * tanh(delta / 0.6)`. The transformed expectations reweight only genes
+already observed in each source cell, so a source-zero gene remains zero. A
+deterministic largest-remainder conversion restores the exact source-cell
+library size, and the 456 challenge-only genes are copied exactly. This design
+preserves real A/B/C sparsity and depth while avoiding direct conversion of
+STATE's uncalibrated absolute output into counts.
+
+A production-shape-per-group CPU smoke used 400 cells for one target in each
+context and produced a `1,200 x 18,533` canonical `int32` CSR matrix with exact
+per-cell libraries, exact challenge-only counts, unique observations, no
+controls, and no failed internal checks. It is not a full 300-target contract
+test. Full H100 direct generation, official VCC dry run, packaging, and a
+leaderboard score remain pending until their respective jobs complete
+successfully. The pinned 2026 STATE repository calls this model
 `state_sm`; the saved output in the older official notebook has the same
 128-cell, 672-hidden, four-layer architecture even though its source cell says
 `model=state`.

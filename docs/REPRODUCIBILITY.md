@@ -138,6 +138,18 @@ state_train_job=$(sbatch --parsable \
   slurm/h100_train_state_sm_v0.sbatch)
 ```
 
+The completed production training run was H100 job `859832`. It trained
+162,626,484 parameters for 20,000 steps and exited successfully. Its recorded
+validation losses include:
+
+| Step | Validation loss |
+|---:|---:|
+| 12,000 | `1.737823367` |
+| 14,000 | `1.812705994` |
+| 16,000 | `1.666636586` |
+| 18,000 | `1.735803962` |
+| 20,000 | `1.701111555` |
+
 The current STATE callback can save before validation at the same 2,000-step
 boundary, which makes its automatic `best.ckpt` lag the validation result.
 Preserve `last.ckpt` as `checkpoints/stepNNNNN.ckpt` immediately after every
@@ -147,6 +159,11 @@ validation. Then select the exact validation-aligned archive before inference:
 .venv-state/bin/python scripts/select_state_checkpoint.py \
   --run-dir artifacts/state_runs/state_sm_20k_v0
 ```
+
+This selected `checkpoints/step16000.ckpt`, the minimum-loss archived
+checkpoint. The selection manifest records the rule, every validation result,
+the metrics-file hash, checkpoint size, and checkpoint SHA256. Do not infer
+with the automatic `best.ckpt` without checking that manifest.
 
 Run bounded-memory inference on exact 128-cell sets and then package only if all
 prior-structure gates pass:
@@ -172,6 +189,126 @@ STATE prior carries this normalization mask, and the package interprets those
 effects against the same shared-gene 50,000-count baseline. The Bayesian CP10K
 prior keeps its 10,000-count, all-gene default. Never submit STATE's continuous
 normalized output directly.
+
+H100 job `860433` completed this effect-prior route for all 900 groups using the
+selected step-16,000 checkpoint. It is retained as a diagnostic and fallback;
+the direct paired-residual count adapter below is the preferred production
+route.
+
+## Direct paired-residual STATE count adapter
+
+The direct adapter avoids treating STATE's absolute prediction as calibrated
+raw counts. For every context-target group it:
+
+1. selects real challenge control cells with deterministic stratification;
+2. maps raw counts onto the 18,080-gene support axis and applies elementwise
+   `log1p`;
+3. runs target and non-targeting embeddings on the identical cell chunk;
+4. subtracts the paired predictions cell by cell;
+5. smoothly bounds non-target modeled effects as
+   `0.6 * tanh(delta / 0.6)` and forces the target-gene fold to `0.20`;
+6. exponentiates the bounded log effect only at source-observed shared genes;
+7. copies all 456 challenge-only gene counts exactly; and
+8. uses deterministic largest remainder to restore the exact source-cell
+   library size.
+
+The source-zero policy is deliberate: genes absent from a source control cell
+remain absent after transformation. It preserves sparsity and prevents a dense
+STATE output from inventing counts, but it also prevents genuine de novo gene
+activation. Largest-remainder integerization avoids extra multinomial noise,
+while exact library preservation means the model can change composition but not
+cell depth. The `0.60` tanh bound is a conservative calibration choice, not a
+learned biological constant. These are material modeling limitations and must
+be revisited with permitted held-out evidence.
+
+The raw-log1p input policy matches one of the two representations present in
+the released training mixture. `competition_train.h5`, the largest matrix, is
+log1p of integer raw counts; the other five matrices are continuous normalized
+log1p profiles with approximately 13,000--14,400 implied counts per cell. The
+checkpoint saw the stored matrices without another normalization pass, so
+neither forced CP10K nor forced CP14K is uniquely faithful to training. The
+adapter therefore keeps elementwise `log1p(raw)` for this candidate and records
+that choice in provenance. A future normalization change requires a paired
+held-out comparison rather than an assumed convention.
+
+Run the bounded H100 target-limit smoke before production:
+
+```bash
+sbatch slurm/h100_generate_state_direct_counts_smoke_v0.sbatch
+```
+
+A minimal CPU plumbing smoke can be reproduced without claiming GPU parity:
+
+```bash
+.venv-state/bin/python scripts/generate_state_direct_counts.py \
+  --model-dir artifacts/state_runs/state_sm_20k_v0 \
+  --checkpoint selected.ckpt \
+  --selection-json artifacts/state_runs/state_sm_20k_v0/checkpoints/selected_checkpoint.json \
+  --controls-dir dataset/controls \
+  --support-genes dataset/state_support/extracted/gene_names.csv \
+  --output-h5ad artifacts/state_direct_counts_cpu_smoke_v0.h5ad \
+  --output-json artifacts/state_direct_counts_cpu_smoke_v0.json \
+  --device cpu --model-chunk-size 1 --cells-per-group 1 --target-limit 1 \
+  --effect-scale 1.0 --effect-clip 0.60 --effect-bounding tanh \
+  --target-strategy force --target-remaining-fraction 0.20 \
+  --max-genes-per-cell 5900 --integerization largest-remainder \
+  --groups-per-shard 1 --seed 20260831
+```
+
+The completed CPU smoke covered one target in A, B, and C. It produced a
+`3 x 18,533` `int32` CSR matrix with 12,768 stored nonzeros. All internal schema
+checks passed; source library sizes and all current-only counts were preserved
+exactly. This deliberately tiny run does not satisfy the full official
+360,000-cell contract and does not replace the H100 smoke or VCC dry run.
+
+After the H100 smoke passes, run full generation and package only its completed
+artifact:
+
+```bash
+state_direct_job=$(sbatch --parsable \
+  slurm/h100_generate_state_direct_counts_v0.sbatch)
+
+sbatch --dependency="afterok:$state_direct_job" \
+  slurm/cpu_package_state_direct_counts_v0.sbatch
+```
+
+The production wrapper uses 400 cells per group in chunks no larger than 128,
+all 300 targets in A/B/C, the step-16,000 selection manifest, tanh bound `0.60`,
+forced target remaining fraction `0.20`, largest-remainder integerization, and
+on-disk H5AD concatenation. The package wrapper independently checks provenance,
+shape, groups, integer counts, scientific invariants, official target order,
+`vcc prep --require-counts --dry-run`, and the generated container. Full direct
+production, package validation, and leaderboard evaluation are pending; do not
+record them as complete until their artifacts and receipts exist.
+
+## HepG2 zero-shot proxy
+
+The released HepG2 support matrix was held out of training and used as a
+zero-shot diagnostic. Prepare the evaluation H5AD and run the pinned direct
+STATE inference plus current `cell-eval2` wrappers with:
+
+```bash
+.venv-state/bin/python scripts/prepare_state_holdout_h5ad.py \
+  dataset/state_support/extracted/hepg2.h5 \
+  dataset/state_support/hepg2_holdout.h5ad
+sbatch slurm/h100_infer_state_hepg2_holdout_v0.sbatch
+sbatch slurm/cpu_score_state_hepg2_celleval2_v0.sbatch
+```
+
+H100 inference job `860448` completed on 9,386 cells: 4,976 non-targeting
+controls and 4,410 treated cells across 68 perturbations. Scoring job `860455`
+used the current evaluator with `--input-type lognorm`. Mean proxy metrics were
+direction fidelity yield `0.496288`, direction reach `0.250694`, LFC NMAE
+`0.968758`, significant-gene Jaccard `0.002487`, unbiased expression distance
+`0.002238`, unbiased expression MSE `0.000466`, capped unbiased expression MSE
+`0.001821`, real-mass ratio `0.011470`, and PDS cosine `0.635865`.
+
+These are raw log-normalized-space diagnostics, not normalized VCC leaderboard
+scores. The public HepG2 matrix does not contain recoverable raw integer counts,
+so it cannot reproduce the official counts-space evaluation. It also evaluates
+the upstream direct inference output rather than the paired raw-count adapter.
+Use it only as evidence about zero-shot behavior and failure modes, not as a
+submission-score estimate.
 
 ## Pre-submission review
 
