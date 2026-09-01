@@ -24,6 +24,10 @@ from authenticate_public_scoring_bundle import (
     authenticate_scoring_bundle,
     require_shared_scoring_identity,
 )
+from build_public_v6_p4_factor_contract import (
+    bind_factor_comparison,
+    validate_factor_receipt,
+)
 from analyze_public_paired_bootstrap import (
     BOOTSTRAP_RESAMPLES,
     BOOTSTRAP_SEED,
@@ -101,6 +105,14 @@ def parse_args() -> argparse.Namespace:
         "--candidate-allow-legacy-v1",
         action="store_true",
         help="Permit an immutable pre-v2 V6 candidate spec for read-only analysis.",
+    )
+    parser.add_argument(
+        "--factor-contract",
+        type=Path,
+        help=(
+            "Optional strict P4 factor receipt. When supplied, both labels and "
+            "candidate specs must be authenticated arms in that receipt."
+        ),
     )
     parser.add_argument("--output-json", type=Path, required=True)
     parser.add_argument("--absolute-tolerance", type=float, default=1e-12)
@@ -560,6 +572,13 @@ def main() -> None:
     require(bool(baseline_label), "Baseline label cannot be empty")
     require(bool(candidate_label), "Candidate label cannot be empty")
     require(baseline_label != candidate_label, "Baseline and candidate labels must differ")
+    p4_gamma_comparison = baseline_label.startswith("p4_g") or candidate_label.startswith(
+        "p4_g"
+    )
+    require(
+        not p4_gamma_comparison or args.factor_contract is not None,
+        "P4 STATE-gamma comparisons require --factor-contract",
+    )
     require(
         args.baseline_results.resolve() != args.candidate_results.resolve(),
         "Baseline and candidate result paths must differ",
@@ -569,6 +588,20 @@ def main() -> None:
             context == PRIMARY_CONTEXT,
             f"The primary role is pre-registered for {PRIMARY_CONTEXT} only",
         )
+
+    factor_contract_binding: dict[str, Any] | None = None
+    if args.factor_contract is not None:
+        factor_receipt = validate_factor_receipt(args.factor_contract)
+        factor_contract_binding = {
+            "receipt": _describe_file(args.factor_contract),
+            **bind_factor_comparison(
+                factor_receipt,
+                baseline_label=baseline_label,
+                baseline_spec=args.baseline_candidate_spec,
+                candidate_label=candidate_label,
+                candidate_spec=args.candidate_candidate_spec,
+            ),
+        }
 
     manifest = _read_manifest(args.manifest)
     manifest_targets = frozenset(manifest["target_gene"])
@@ -716,6 +749,7 @@ def main() -> None:
             "shared_scoring_identity": shared_scoring_identity,
             "baseline_cell_eval2_sidecars": baseline_sidecars,
             "candidate_cell_eval2_sidecars": candidate_sidecars,
+            "factor_contract": factor_contract_binding,
         },
         "leakage_firewall": {
             "reads_manifest": True,
@@ -726,7 +760,12 @@ def main() -> None:
             "hashes_prediction_and_truth_scoring_views": True,
             "loads_scoring_view_expression_matrices": False,
             "reads_truth_h5ad": False,
-            "reads_prediction_h5ad": False,
+            "reads_prediction_h5ad": args.factor_contract is not None,
+            "streams_generated_prediction_counts_for_factor_authentication": (
+                args.factor_contract is not None
+            ),
+            "materializes_full_prediction_expression_matrices": False,
+            "authenticates_factor_contract": args.factor_contract is not None,
             "reads_control_h5ad": False,
             "writes_or_modifies_input_artifacts": False,
         },

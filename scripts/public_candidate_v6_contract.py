@@ -51,6 +51,17 @@ APPROVED_TARGET_REMAINING_FRACTIONS = (
     DEFAULT_TARGET_REMAINING_FRACTION,
     0.40,
 )
+DEFAULT_STATE_EFFECT_WEIGHT = 1.00
+APPROVED_STATE_EFFECT_WEIGHTS = (
+    0.50,
+    0.75,
+    DEFAULT_STATE_EFFECT_WEIGHT,
+)
+P4_STATE_GAMMA_TAGS = {
+    0.50: "p4_g050_p0_a010",
+    0.75: "p4_g075_p0_a010",
+    1.00: "p4_g100_p0_a010",
+}
 
 STRICT_PROVENANCE_CONTRACT = "vcc-public-generator-provenance-v2"
 STRICT_SPEC_INPUT_KEYS = (
@@ -80,7 +91,7 @@ LOCKED_GENERATOR_CONFIGURATION: dict[str, Any] = {
     "seed": 20260901,
     "cells_per_group": 400,
     "model_chunk_size": 128,
-    "state_effect_weight": 1.0,
+    "state_effect_weight": DEFAULT_STATE_EFFECT_WEIGHT,
     "state_effect_clip": 0.60,
     "state_effect_bounding": "tanh",
     "combined_effect_clip": 0.65,
@@ -298,6 +309,48 @@ def validate_target_remaining_fraction(value: float) -> float:
     )
 
 
+def validate_state_effect_weight(value: float) -> float:
+    """Return a canonical, pre-registered STATE-anchor amplitude."""
+
+    require(math.isfinite(value), "STATE effect weight must be finite")
+    for approved in APPROVED_STATE_EFFECT_WEIGHTS:
+        if value == approved:
+            return approved
+    approved_values = ", ".join(
+        f"{item:.2f}" for item in APPROVED_STATE_EFFECT_WEIGHTS
+    )
+    raise RuntimeError(
+        "STATE effect weight is outside the pre-registered V6 set "
+        f"({approved_values})"
+    )
+
+
+def validate_p4_state_gamma_arm(
+    *,
+    context: str,
+    output_tag: str,
+    state_effect_weight: float,
+    residual_alpha: float,
+    target_remaining_fraction: float,
+) -> None:
+    """Bind every non-default gamma arm to the exact HepG2 P4 contract."""
+
+    is_p4_tag = output_tag.startswith("p4_g")
+    is_nondefault_gamma = state_effect_weight != DEFAULT_STATE_EFFECT_WEIGHT
+    if not is_p4_tag and not is_nondefault_gamma:
+        return
+    require(context == "HepG2", "P4 STATE-gamma arms are restricted to HepG2")
+    require(
+        output_tag == P4_STATE_GAMMA_TAGS[state_effect_weight],
+        "P4 output tag does not match the STATE effect weight",
+    )
+    require(residual_alpha == 0.10, "P4 STATE-gamma arms require residual alpha 0.10")
+    require(
+        target_remaining_fraction == 0.20,
+        "P4 STATE-gamma arms require target remaining fraction 0.20",
+    )
+
+
 def validate_panel(
     manifest_path: Path, csv_path: Path
 ) -> tuple[list[str], np.ndarray, dict[str, Any]]:
@@ -414,8 +467,16 @@ def build_spec(args: argparse.Namespace) -> dict[str, Any]:
         math.isfinite(args.residual_alpha) and args.residual_alpha >= 0,
         "Alpha must be finite and nonnegative",
     )
+    state_effect_weight = validate_state_effect_weight(args.state_effect_weight)
     target_remaining_fraction = validate_target_remaining_fraction(
         args.target_remaining_fraction
+    )
+    validate_p4_state_gamma_arm(
+        context=args.context,
+        output_tag=tag,
+        state_effect_weight=state_effect_weight,
+        residual_alpha=float(args.residual_alpha),
+        target_remaining_fraction=target_remaining_fraction,
     )
     paths = (
         args.controls_h5ad,
@@ -467,6 +528,7 @@ def build_spec(args: argparse.Namespace) -> dict[str, Any]:
 
     configuration = dict(LOCKED_GENERATOR_CONFIGURATION)
     configuration["context"] = args.context
+    configuration["state_effect_weight"] = state_effect_weight
     configuration["residual_alpha"] = float(args.residual_alpha)
     configuration["target_remaining_fraction"] = target_remaining_fraction
     return {
@@ -764,6 +826,16 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Finite nonnegative residual multiplier; zero defines the STATE-only "
             "P3 arm while retaining authenticated residual declarations."
+        ),
+    )
+    plan.add_argument(
+        "--state-effect-weight",
+        type=float,
+        default=DEFAULT_STATE_EFFECT_WEIGHT,
+        choices=APPROVED_STATE_EFFECT_WEIGHTS,
+        help=(
+            "Raw paired-STATE residual amplitude applied before tanh bounding. "
+            "Only the pre-registered V6 values 0.50, 0.75, and 1.00 are accepted."
         ),
     )
     plan.add_argument(

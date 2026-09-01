@@ -276,6 +276,14 @@ class PublicV6SequentialComparisonTests(unittest.TestCase):
         self.assertEqual(diagnostics["finite_target_union"], 3)
         self.assertFalse(diagnostics["finite_target_masks_identical"])
 
+    def test_p4_gamma_label_requires_factor_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(RuntimeError, "require --factor-contract"):
+                _run(
+                    Path(temporary),
+                    candidate_cli_label="p4_g075_p0_a010",
+                )
+
     def test_primary_comparison_reports_metrics_bootstrap_and_passes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             report = _run(Path(temporary))

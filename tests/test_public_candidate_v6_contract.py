@@ -166,6 +166,7 @@ class PublicCandidateV6ContractTests(unittest.TestCase):
         return Namespace(
             context="HepG2",
             output_tag="v51_p0_a0025",
+            state_effect_weight=1.0,
             residual_alpha=0.025,
             target_remaining_fraction=0.20,
             controls_h5ad=controls,
@@ -217,6 +218,7 @@ class PublicCandidateV6ContractTests(unittest.TestCase):
             spec = module.build_spec(self._inputs(Path(directory)))
             self.assertEqual(spec["schema"], module.SPEC_SCHEMA)
             self.assertEqual(spec["context"], "HepG2")
+            self.assertEqual(spec["configuration"]["state_effect_weight"], 1.0)
             self.assertEqual(spec["configuration"]["residual_alpha"], 0.025)
             self.assertEqual(spec["configuration"]["target_remaining_fraction"], 0.20)
             self.assertEqual(spec["axes"]["direct_targets"], 267)
@@ -330,6 +332,116 @@ class PublicCandidateV6ContractTests(unittest.TestCase):
             args.target_remaining_fraction = 0.40
             spec = module.build_spec(args)
             self.assertEqual(spec["configuration"]["target_remaining_fraction"], 0.40)
+
+    def test_only_preregistered_state_effect_weights_are_accepted(self) -> None:
+        for value in module.APPROVED_STATE_EFFECT_WEIGHTS:
+            with self.subTest(value=value):
+                self.assertEqual(module.validate_state_effect_weight(value), value)
+
+        for value in (0.0, 0.25, 0.60, 1.25, float("nan"), float("inf")):
+            with self.subTest(value=value), self.assertRaisesRegex(
+                RuntimeError, "STATE effect weight"
+            ):
+                module.validate_state_effect_weight(value)
+
+        with tempfile.TemporaryDirectory() as directory:
+            args = self._inputs(Path(directory))
+            args.state_effect_weight = 0.50
+            args.output_tag = "p4_g050_p0_a010"
+            args.residual_alpha = 0.10
+            spec = module.build_spec(args)
+            self.assertEqual(spec["configuration"]["state_effect_weight"], 0.50)
+
+    def test_p4_gamma_is_bound_to_the_exact_preregistered_arm(self) -> None:
+        module.validate_p4_state_gamma_arm(
+            context="HepG2",
+            output_tag="p4_g075_p0_a010",
+            state_effect_weight=0.75,
+            residual_alpha=0.10,
+            target_remaining_fraction=0.20,
+        )
+        module.validate_p4_state_gamma_arm(
+            context="HepG2",
+            output_tag="ordinary_gamma_one_candidate",
+            state_effect_weight=1.0,
+            residual_alpha=0.025,
+            target_remaining_fraction=0.40,
+        )
+        invalid = (
+            {
+                "context": "Jurkat",
+                "output_tag": "p4_g075_p0_a010",
+                "state_effect_weight": 0.75,
+                "residual_alpha": 0.10,
+                "target_remaining_fraction": 0.20,
+            },
+            {
+                "context": "HepG2",
+                "output_tag": "wrong_tag",
+                "state_effect_weight": 0.75,
+                "residual_alpha": 0.10,
+                "target_remaining_fraction": 0.20,
+            },
+            {
+                "context": "HepG2",
+                "output_tag": "p4_g050_p0_a010",
+                "state_effect_weight": 0.50,
+                "residual_alpha": 0.05,
+                "target_remaining_fraction": 0.20,
+            },
+            {
+                "context": "HepG2",
+                "output_tag": "p4_g100_p0_a010",
+                "state_effect_weight": 1.0,
+                "residual_alpha": 0.10,
+                "target_remaining_fraction": 0.40,
+            },
+        )
+        for configuration in invalid:
+            with self.subTest(configuration=configuration), self.assertRaises(
+                RuntimeError
+            ):
+                module.validate_p4_state_gamma_arm(**configuration)
+
+    def test_generation_report_must_match_locked_state_effect_weight(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            args = self._inputs(Path(directory))
+            args.state_effect_weight = 0.75
+            args.output_tag = "p4_g075_p0_a010"
+            args.residual_alpha = 0.10
+            spec = module.build_spec(args)
+            report = {
+                "schema": module.PREDICTION_SCHEMA,
+                "artifact_type": "sealed_public_validation_prediction",
+                "full_frozen_panel_contract": True,
+                "data_firewall": {
+                    "sealed_treated_profiles_read": False,
+                    "truth_inputs_read": [],
+                },
+                "configuration": dict(spec["configuration"]),
+                "validation": {
+                    "shape": [120000, spec["axes"]["native_genes"]],
+                    "groups": 300,
+                    "failed_checks": [],
+                },
+                "scientific_qc": {
+                    "all_libraries_exact": True,
+                    "all_native_non_support_counts_exact": True,
+                    "target_knockdown_failures": [],
+                },
+                "residual": {
+                    "enabled": True,
+                    "alpha": 0.10,
+                    "artifact_read": True,
+                },
+                "provenance": self._generation_provenance(
+                    spec, residual_enabled=True
+                ),
+            }
+            module.validate_generation_report(report, spec)
+            report["configuration"]["state_effect_weight"] = 1.0
+            with self.assertRaisesRegex(RuntimeError, "state_effect_weight"):
+                module.validate_generation_report(report, spec)
 
     def test_generation_report_must_match_locked_alpha_and_provenance(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

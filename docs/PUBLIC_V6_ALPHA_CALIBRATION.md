@@ -55,7 +55,7 @@ after planning causes strict verification to fail before prediction parsing.
 Candidate tags must match `[a-z0-9][a-z0-9._-]{0,63}`. Existing specs,
 predictions, receipts, score directories, and caches are never overwritten.
 
-The locked alpha-calibration configuration is:
+The historical locked P2/P3 configuration is:
 
 ```text
 STATE weight             1.0
@@ -74,6 +74,10 @@ fraction accepts exactly `0.20` or `0.40`; every other value fails before the
 spec is written. Omitting it preserves the `0.20` default. The selected value
 is bound independently in `spec.json`, `generation.json`, and
 `generation_verified.json`.
+
+P4 additionally exposes the raw STATE effect weight as one authenticated
+factor with the pre-registered set `0.50`, `0.75`, and `1.00`; omission keeps
+the historical `1.00` default. No other generator parameter is opened.
 
 ## P3 matched target-force ablation
 
@@ -269,3 +273,16 @@ Residual-only candidates must leave all 33 held-target groups count-identical
 to the matched anchor. A candidate is not promoted if HepG2 expression MSE,
 NMAE, or reach regresses beyond the pre-registered non-inferiority margin,
 even when a discrimination metric improves.
+
+## P4 STATE-anchor amplitude
+
+After P3 retained the V5.1 incumbent, the next isolated factor is the raw
+paired-STATE amplitude before tanh bounding. The strict candidate contract and
+H100 wrapper accept only gamma `0.50`, `0.75`, or `1.00` and bind the selected
+value in the immutable spec and generation receipt. P4 regenerates gamma
+`1.00` as a strict-v2 control and requires a three-arm factor receipt proving
+that all public residual, target-force, decoder, and generator inputs remain
+fixed. Scorer identity is authenticated by the later pairwise comparison
+receipts. The complete pre-registration, tags, commands, and deterministic
+selection rule are in
+[the P4 STATE-gamma plan](PUBLIC_V6_P4_STATE_GAMMA.md).

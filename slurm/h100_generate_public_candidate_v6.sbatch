@@ -20,7 +20,18 @@ set -euo pipefail
 : "${VCC_RESIDUAL_ALPHA:?Set VCC_RESIDUAL_ALPHA to a nonnegative number}"
 : "${VCC_RESIDUAL_NPZ:?Set VCC_RESIDUAL_NPZ to the residual artifact}"
 : "${VCC_RESIDUAL_JSON:?Set VCC_RESIDUAL_JSON to its authenticated sidecar}"
+readonly REQUESTED_STATE_EFFECT_WEIGHT="${VCC_STATE_EFFECT_WEIGHT:-1.00}"
 readonly REQUESTED_TARGET_REMAINING_FRACTION="${VCC_TARGET_REMAINING_FRACTION:-0.20}"
+
+case "$REQUESTED_STATE_EFFECT_WEIGHT" in
+  0.50|0.5) readonly STATE_EFFECT_WEIGHT="0.50" ;;
+  0.75) readonly STATE_EFFECT_WEIGHT="0.75" ;;
+  1.00|1.0|1) readonly STATE_EFFECT_WEIGHT="1.00" ;;
+  *)
+    echo "VCC_STATE_EFFECT_WEIGHT must be one of 0.50, 0.75, or 1.00" >&2
+    exit 2
+    ;;
+esac
 
 case "$REQUESTED_TARGET_REMAINING_FRACTION" in
   0.20|0.2) readonly TARGET_REMAINING_FRACTION="0.20" ;;
@@ -129,6 +140,7 @@ export PYTHONDONTWRITEBYTECODE=1
 "$PYTHON_BIN" scripts/public_candidate_v6_contract.py plan \
   --context "$VCC_CONTEXT" \
   --output-tag "$VCC_OUTPUT_TAG" \
+  --state-effect-weight "$STATE_EFFECT_WEIGHT" \
   --residual-alpha "$VCC_RESIDUAL_ALPHA" \
   --target-remaining-fraction "$TARGET_REMAINING_FRACTION" \
   --controls-h5ad "$CONTROLS" \
@@ -170,7 +182,7 @@ nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv,nohead
   --require-h100 \
   --model-chunk-size 128 \
   --cells-per-group 400 \
-  --state-effect-weight 1.0 \
+  --state-effect-weight "$STATE_EFFECT_WEIGHT" \
   --state-effect-clip 0.60 \
   --state-effect-bounding tanh \
   --residual-npz "$VCC_RESIDUAL_NPZ" \

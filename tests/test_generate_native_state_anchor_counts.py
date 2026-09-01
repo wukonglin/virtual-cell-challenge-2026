@@ -252,6 +252,24 @@ class EffectAndCountTests(unittest.TestCase):
         self.assertEqual(qc["state_outside_bound"], 2)
         self.assertEqual(qc["combined_outside_bound"], 1)
 
+    def test_state_weight_is_applied_before_tanh_bounding(self) -> None:
+        state = np.asarray([[2.0, -2.0]], dtype=np.float32)
+        combined, _ = combine_support_delta(
+            state,
+            np.zeros(2, dtype=np.float32),
+            state_weight=0.5,
+            state_clip=0.5,
+            state_bounding="tanh",
+            residual_alpha=0.0,
+            combined_clip=1.0,
+            target_support_index=0,
+            target_policy="off",
+            target_remaining_fraction=0.2,
+        )
+        expected = 0.5 * np.tanh((0.5 * state) / 0.5)
+        np.testing.assert_allclose(combined, expected, rtol=1e-6, atol=1e-7)
+        self.assertGreater(float(combined[0, 0]), 0.45)
+
     def test_exact_renderer_preserves_library_and_native_only_counts(self) -> None:
         base = sp.csr_matrix(np.asarray([[5, 3, 7, 2]], dtype=np.int32))
         emitted, qc = render_exact_native_counts(
