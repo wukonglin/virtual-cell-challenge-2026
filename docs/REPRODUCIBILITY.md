@@ -435,9 +435,9 @@ the production paths.
 
 ### Executed v4 candidate run on 2026-08-31
 
-The complete offline v4 chain was executed on AIDA without a leaderboard
-submission. H100 signature job `860790` completed in 1 minute 57 seconds on an
-NVIDIA H100 80GB. It retained 9,522 of 9,675 K562 targets with ESM2 vectors,
+The complete v4 chain was generated and validated offline on AIDA before one
+validation-round submission. H100 signature job `860790` completed in 1 minute
+57 seconds on an NVIDIA H100 80GB. It retained 9,522 of 9,675 K562 targets with ESM2 vectors,
 covered all 300 requested challenge targets, and selected the rank objective at
 epoch 4 with common scale `1.25`, residual scale `0.50`, and whole-cluster proxy
 `0.1006820524`. The signature NPZ SHA256 is
@@ -465,8 +465,24 @@ offline package is `2,802,677,760` bytes with SHA256
 `5f4b999cefe5b66c990e274beeb1fd41f6757b8328145bc934714b597757801a`.
 All nine entries in `cross_context_state_v4_SHA256SUMS` were independently
 verified. These checks establish format and production integrity, not model
-superiority. The candidate remains offline until paired v3-versus-v4 evidence
-shows improved perturbation signal without an expression-MSE regression.
+superiority.
+
+The package was submitted once as entry `jUKnSMYeYJaOCyOXJ4mc`, model name
+`V4`, at `2026-09-01T03:30:59Z`. It was published without an upload, format, or
+scoring error at overall score `-0.0501571428` and rank 334 at receipt. Scaled
+components were PDS `0.0309523426`, expression MSE `0`, LFC NMAE
+`-0.2933153459`, direction fidelity `-0.0441675259`, direction reach
+`0.0027474151`, and significance Jaccard `0.0028402571`.
+
+Relative to entry `JbDxq7SJV2wI0DWlIREn` (`STATE prediction`, overall
+`-0.0059348511`), v4 improved scaled PDS by `0.0364660289`, fidelity by
+`0.0025677290`, and Jaccard by `0.0329601634`, but regressed LFC NMAE by
+`0.2638889184` and direction reach by `0.0734387530`. Raw capped expression MSE
+rose from `4.7389056308` to `30.1804215609`, while raw LFC NMAE rose from
+`1.0176913088` to `1.1800212368`. This is an effect-amplitude and expression
+calibration failure, not a packaging failure. V4 is therefore not promoted;
+future candidates must preserve its PDS/Jaccard gains while applying a much
+stronger amplitude shrinkage and an exact-counts calibration gate.
 
 Build the raw HepG2 and Jurkat response atlases as independent research jobs:
 
