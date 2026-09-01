@@ -2,13 +2,11 @@
 #SBATCH --job-name=vcc-k562-signature-v2
 #SBATCH --account=allaccess
 #SBATCH --partition=full
-#SBATCH --qos=high
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gres=gpu:h100:1
-#SBATCH --constraint=gpu-h100
+#SBATCH --gpus=h100:1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=128G
+#SBATCH --mem=64G
 #SBATCH --time=02:00:00
 #SBATCH --output=logs/h100_k562_signature_v2_%j.out
 #SBATCH --error=logs/h100_k562_signature_v2_%j.err
