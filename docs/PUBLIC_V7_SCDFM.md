@@ -296,11 +296,14 @@ held context, one held target cluster, and an authenticated immutable
 forward/backward passes, deterministic restart, and no train/validation
 identity overlap before compact training is allowed.
 
-The synthetic objective-contract portion completed on one NVIDIA H100 80 GB as
+The historical synthetic objective-contract portion completed on one NVIDIA H100 80 GB as
 Slurm job `861790` in four seconds. It passed all 17 checks, used 67,563,520
 bytes of peak allocated GPU memory, and produced finite CFM, MMD, total-loss,
-gradient, and post-step parameter values. This validates objective wiring and
-the GPU environment only; it is not evidence of prediction quality. The
+gradient, and post-step parameter values. The registered configuration was
+subsequently hardened with fail-closed ESM2 provenance and residual-identity
+contracts, so this run is explicitly superseded and a fresh H100 run is
+required. It established historical objective wiring and GPU compatibility
+only; it is not evidence of current-config validity or prediction quality. The
 sanitized receipt is tracked at
 `results/scdfm_v7/h100_contract_smoke.json`.
 

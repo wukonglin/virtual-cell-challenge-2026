@@ -244,11 +244,13 @@ passes. Gate 1b remains incomplete, the exact ESM2 provenance is unresolved,
 and the required sealed Jurkat non-harm manifest has not yet been created, so
 the lane is not training-ready or submission-ready. All three official
 archives and one released Norman checkpoint have passed local integrity
-audits. Synthetic objective wiring passed its single-H100 contract smoke. A
+audits. A historical synthetic-objective H100 smoke passed, but its registered
+configuration predates the final fail-closed ESM2 and residual-identity
+contracts and is therefore superseded pending a fresh run. A
 historical single-H100 run also strict-loaded the 60.4-million-parameter
 released model, but it predates the immutable Git-object execution boundary
-and is superseded for source-provenance purposes; the hardened smoke requires
-a fresh H100 run. These are compatibility checks, not model-quality evidence.
+and is superseded for source-provenance purposes; both hardened smokes require
+fresh H100 runs. These are compatibility checks, not model-quality evidence.
 See the [V7 design and stop rules](docs/PUBLIC_V7_SCDFM.md).
 
 The downloaded Feng multi-iPSC atlas adds 850,726 normalized-log1p cells,

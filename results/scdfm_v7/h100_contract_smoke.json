@@ -1,23 +1,32 @@
 {
   "schema": "vcc-scdfm-contract-smoke-sanitized-v1",
-  "status": "passed",
+  "status": "superseded",
+  "historical_status": "passed",
+  "supersession": {
+    "reason": "The registered V7 configuration changed after this run to add fail-closed ESM2 provenance and stronger residual identity contracts.",
+    "historical_config_sha256": "24911ddb4e916cd1cb8dc7ec7ee3dc14282e074feab625be8668651744213613",
+    "required_current_config_sha256": "257b28a8b5423154c772cf61493d7fd98bb73d887e35e11b2b1c52f9e7e99bab",
+    "current_config_authenticated": false,
+    "fresh_h100_rerun_required": true,
+    "submission_ready": false
+  },
   "scope": {
     "synthetic_data_only": true,
     "model_performance_evaluation": false,
     "official_submission_artifact": false
   },
-  "successful_job": {
-        "slurm_job_id": "861790",
+  "historical_job": {
+    "slurm_job_id": "861790",
     "state": "COMPLETED",
     "exit_code": "0:0",
-        "elapsed": "00:00:04",
+    "elapsed": "00:00:04",
     "gpu": "NVIDIA H100 80GB HBM3",
     "compute_capability": "9.0",
     "peak_memory_allocated_bytes": 67563520,
-        "receipt_sha256": "6a5e3e9c048a0627f85536542598d8fa2945dce517f777a8efc8cb8b0ea2240d"
+    "receipt_sha256": "6a5e3e9c048a0627f85536542598d8fa2945dce517f777a8efc8cb8b0ea2240d"
   },
   "configuration": {
-        "sha256": "24911ddb4e916cd1cb8dc7ec7ee3dc14282e074feab625be8668651744213613",
+    "sha256": "24911ddb4e916cd1cb8dc7ec7ee3dc14282e074feab625be8668651744213613",
     "seed": 20260901,
     "state_effect_weight": 1.0,
     "mmd_weight": 0.5,
@@ -31,12 +40,12 @@
     "gradient_l2_norm": 0.5972446626726339
   },
   "checks": {
-        "all_17_contract_checks_passed": true,
+    "all_17_contract_checks_passed": true,
     "finite_losses_gradients_and_parameters": true,
     "h100_detected": true,
-        "synthetic_state_effect_scale_bound_to_one": true,
-        "absolute_scdfm_output_forbidden": true,
-        "context_target_residual_centering_required": true,
+    "synthetic_state_effect_scale_bound_to_one": true,
+    "absolute_scdfm_output_forbidden": true,
+    "context_target_residual_centering_required": true,
     "mmd_weight_separately_bound": true
   },
   "environment_correction": {
