@@ -14,6 +14,35 @@ For each anonymous cell context and CRISPRi target, predict a distribution of po
 
 The evaluation cell lines have no released perturbation labels. Models must therefore learn perturbation effects from permitted external data and adapt them to each released non-targeting-control population.
 
+## Official leaderboard history
+
+The table below is the consolidated submission ledger. `PDS`, `MSE`, `JAC`,
+`NMAE`, `FID`, and `Reach` are the six official normalized component scores,
+not the raw metrics. Rank is a volatile snapshot captured with each receipt;
+the immutable entry ID and score vector are the reproducible record.
+
+| Submitted (UTC) | Model | Team scope | Overall | PDS | MSE | JAC | NMAE | FID | Reach | Receipt rank | Evidence |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| 2026-08-24 | Pre-repository submission | Historical screenshot | `-0.3034` | — | — | — | — | — | — | `185/220` | Dashboard screenshot only |
+| 2026-08-26 | Bayesian public-prior v0 | Legacy receipt | `-0.0205876393` | `-0.0000224419` | `0.0000000000` | `-0.0488685471` | `-0.0124922108` | `-0.1121282228` | `0.0499855865` | `173` | [`4gqHnJ61sXnaMRRcLPTc`](results/bayesian_v0/metrics.json) |
+| 2026-08-31 21:40 | STATE prediction | Legacy receipt | `-0.0059348511` | `-0.0055136863` | `0.0000000000` | `-0.0301199063` | `-0.0294264274` | `-0.0467352548` | `0.0761861680` | `278` | [`JbDxq7SJV2wI0DWlIREn`](results/state_direct_v0/submission.json) |
+| 2026-09-01 03:30 | V4 | Current team | `-0.0501571428` | `0.0309523426` | `0.0000000000` | `0.0028402571` | `-0.2933153459` | `-0.0441675259` | `0.0027474151` | `334` | [`jUKnSMYeYJaOCyOXJ4mc`](results/v4/submission.json) |
+| 2026-09-01 14:45 | STATE weights v1 | Current team | `-0.0059348511` | `-0.0055136863` | `0.0000000000` | `-0.0301199063` | `-0.0294264274` | `-0.0467352548` | `0.0761861680` | `298` | [`OYBJARG6NeWPgONA3AXl`](https://github.com/wukonglin/virtual-cell-challenge-2026/blob/submission/state-weights-v1/results/state_weights_v1/submission.json) |
+
+The August 24 row predates the repository, so its component scores, entry ID,
+model name, and artifact hash are unknown. A later dashboard screenshot showed
+five submissions before `STATE weights v1`, while the repository plus the
+August 24 screenshot identify only four of them. One historical counter
+increment is therefore unresolved and is deliberately not assigned invented
+metadata. Older legacy entry IDs are retained from authenticated local
+receipts even though they are no longer queryable under the current team.
+
+`STATE weights v1` is an exact byte-identical resubmission of the earlier
+STATE artifact, SHA256
+`a286243bab905c12d84cb83e5460ca18ab8cc0931624c3368ec98fbc9919e4d6`.
+Its identical score vector confirms deterministic server evaluation; the rank
+difference reflects leaderboard movement rather than a model change.
+
 ## Tracked baselines
 
 The first submitted model is a conservative context-weighted Bayesian public-prior baseline. It combines:
