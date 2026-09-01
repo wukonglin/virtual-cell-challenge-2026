@@ -1,0 +1,62 @@
+{
+  "schema": "vcc-public-v6-p2-decision-v1",
+  "created_date": "2026-09-01",
+  "context": "HepG2",
+  "candidate": {
+    "tag": "v6_relp05_ematch_a0124898",
+    "residual_power": 0.5,
+    "residual_alpha": 0.1248983248,
+    "energy_matched_to": "v51_alpha010",
+    "target_remaining_fraction": 0.2,
+    "prediction_sha256": "9f3965d4dde65ce5fafb6f9abe218ca18badceed8d26ca4fdaed7b2997b626c2",
+    "results_sha256": "34e9ddfec32c0be6d3d38c9b99d60d669835accb7a2e5ff9883fd28ed22ef655",
+    "scoring_verification_sha256": "c14b71b545cea2de9663ecc1f309946bf55064447606f699f98b77a4d7eff124"
+  },
+  "baseline": {
+    "tag": "v51_alpha010",
+    "residual_power": 0.0,
+    "residual_alpha": 0.1,
+    "target_remaining_fraction": 0.2,
+    "results_sha256": "877dbd7cf668b896af9db930e4a7c14df8e41b1d383d8d9d9e4d127cb0637bf7"
+  },
+  "oriented_candidate_minus_baseline": {
+    "all": {
+      "pds_cosine": 0.00031215161649944534,
+      "expr_mse_unbiased_capped_norm": -0.00027966135769741385,
+      "de_wilcoxon_lfc_nmae": 0.00003913698542512556,
+      "de_wilcoxon_direction_fidelity_yield_raw": -0.0016294632072184068,
+      "de_wilcoxon_direction_reach_raw": -0.00022500825284885173,
+      "de_wilcoxon_sig_jaccard": -0.000011337086543411479
+    },
+    "direct": {
+      "pds_cosine": 0.00035073215337011465,
+      "expr_mse_unbiased_capped_norm": -0.000310129694316541,
+      "de_wilcoxon_lfc_nmae": 0.000043171726190616155,
+      "de_wilcoxon_direction_fidelity_yield_raw": -0.0018370782104547012,
+      "de_wilcoxon_direction_reach_raw": -0.000254638969273413,
+      "de_wilcoxon_sig_jaccard": -0.000012738299486989013
+    }
+  },
+  "paired_bootstrap": {
+    "resamples": 10000,
+    "seed": 20260901,
+    "all_mse_two_sided_90pct_ci": [
+      -0.0004250866022322386,
+      -0.0001381588429334224
+    ],
+    "all_pds_two_sided_90pct_ci": [
+      -0.0004236343366778028,
+      0.0010702341137124316
+    ],
+    "all_supported_improvement_count": 0
+  },
+  "comparison_sha256": "df80f68cb2e320013dc7de00d30f936d85f9f42ce27ec0395898d8a5397d0ac3",
+  "decision": {
+    "primary_promotion_gate_passed": false,
+    "all_target_gate_passed": false,
+    "direct_target_gate_passed": false,
+    "held_target_non_regression_passed": true,
+    "promote_to_jurkat": false,
+    "next_step": "Run the pre-registered P3 2-by-2 target-force ablation with the power-zero residual."
+  }
+}

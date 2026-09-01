@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Generate scorer-aware VCC counts from STATE and optional response priors.
 
-This v2 adapter fixes a consequential property of the original direct-count
-adapter: it never renormalizes a target-gene change over the other genes.  Each
-gene receives an independent expected count and is integerized independently.
-The target gene is not forced by default because VCC 2026 excludes the perturbed
-gene from every metric.  An optional target clamp changes only that coordinate.
+The adapter supports two explicit rendering families. Independent emission
+assigns each gene its own expected count and does not conserve a row total.
+Exact emission reuses the scored STATE composition allocator, preserves every
+source-cell library exactly, protects challenge-only genes, and never activates
+a source-zero coordinate. Target handling is explicit for both families.
 
 Optional NPZ artifacts can add a common log-fold response, a learned
 target-specific log-fold response, and an absolute pseudobulk mean.  A
@@ -65,6 +65,7 @@ from generate_state_direct_counts import (  # noqa: E402
     read_control_rows,
     state_paired_delta,
     summarize,
+    transform_raw_row,
     validate_backed_candidate,
     validate_model,
     validate_selection_manifest,
@@ -163,16 +164,29 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument(
         "--target-policy",
-        choices=("off", "clamp"),
+        choices=("off", "clamp", "force"),
         default="off",
-        help="Default off; clamp changes only the perturbed-gene coordinate.",
+        help=(
+            "Default off; clamp caps independent expectations, while force sets the "
+            "target log-fold before exact-library composition emission."
+        ),
     )
     parser.add_argument("--target-max-remaining-fraction", type=float, default=0.20)
     parser.add_argument(
         "--count-emission",
-        choices=("round", "stochastic-round", "poisson", "negative-binomial"),
+        choices=(
+            "round",
+            "stochastic-round",
+            "poisson",
+            "negative-binomial",
+            "exact-largest-remainder",
+            "exact-multinomial",
+        ),
         default="round",
-        help="Independent per-gene integer emission; no multinomial normalization.",
+        help=(
+            "Independent per-gene emission or a source-library-preserving "
+            "composition transform."
+        ),
     )
     parser.add_argument(
         "--nb-dispersion",
@@ -226,6 +240,11 @@ def validate_args(args: argparse.Namespace) -> None:
         0 < args.target_max_remaining_fraction <= 1,
         "target-max-remaining-fraction must be in (0, 1]",
     )
+    if args.target_policy == "force":
+        require(
+            args.target_max_remaining_fraction < 1,
+            "target-policy force requires a remaining fraction below one",
+        )
     require(args.nb_dispersion > 0, "nb-dispersion must be positive")
     require(
         0 < args.max_genes_per_cell <= EXPECTED_CURRENT_GENES,
@@ -251,6 +270,21 @@ def validate_args(args: argparse.Namespace) -> None:
         require(
             args.pseudobulk_blend_weight > 0,
             "zero induction requires a positive pseudobulk blend weight",
+        )
+    exact_emission = args.count_emission.startswith("exact-")
+    if exact_emission:
+        require(
+            args.pseudobulk_blend_weight == 0 and args.zero_induction_scale == 0,
+            "Exact-library emission does not accept the absolute pseudobulk branch",
+        )
+        require(
+            args.target_policy in ("off", "force"),
+            "Exact-library emission supports target-policy off or force",
+        )
+    else:
+        require(
+            args.target_policy != "force",
+            "target-policy force requires exact-library emission",
         )
     for output in (args.output_h5ad, args.output_json):
         require(not output.exists(), f"Refusing to overwrite existing artifact: {output}")
@@ -629,6 +663,184 @@ def emit_independent_counts(
         "emitted_count_total_after_cap": emitted_after_cap,
         "dropped_nnz_without_redistribution": int(dropped_nnz),
         "dropped_counts_without_redistribution": int(dropped_counts),
+        "redistributed_shared_counts": 0,
+    }
+
+
+def emit_exact_library_counts(
+    base: sp.csr_matrix,
+    current_log_fold: np.ndarray,
+    support_to_current: np.ndarray,
+    rng: np.random.Generator,
+    *,
+    emission: str,
+    max_genes_per_cell: int,
+    target_current_index: int,
+    target_policy: str,
+    target_remaining_fraction: float,
+) -> tuple[sp.csr_matrix, dict[str, Any]]:
+    """Apply a current-axis response while preserving the source library exactly.
+
+    The allocator is the scored STATE adapter's implementation. Challenge-only
+    genes are protected, low-count shared genes beyond the row cap donate their
+    molecules to retained shared genes, and source-zero coordinates remain zero.
+    """
+    require(sp.isspmatrix_csr(base), "Exact-library emission requires CSR input")
+    log_fold = np.asarray(current_log_fold, dtype=np.float32)
+    mapping = np.asarray(support_to_current, dtype=np.int64)
+    require(log_fold.shape == base.shape, "Current-axis response has the wrong shape")
+    require(np.isfinite(log_fold).all(), "Current-axis response is non-finite")
+    valid_support = mapping >= 0
+    require(np.all(mapping[valid_support] < base.shape[1]), "Invalid support mapping")
+    require(
+        len(np.unique(mapping[valid_support])) == int(valid_support.sum()),
+        "Support mapping contains duplicate current-axis coordinates",
+    )
+    current_only_mask = np.ones(base.shape[1], dtype=bool)
+    current_only_mask[mapping[valid_support]] = False
+    require(
+        not np.any(log_fold[:, current_only_mask] != 0),
+        "Exact-library emission cannot silently discard current-only effects",
+    )
+    support_delta = np.zeros((base.shape[0], len(mapping)), dtype=np.float32)
+    support_delta[:, valid_support] = log_fold[:, mapping[valid_support]]
+
+    target_support_positions = np.flatnonzero(mapping == target_current_index)
+    require(len(target_support_positions) == 1, "Target is not unique on the support axis")
+    target_support_index = int(target_support_positions[0])
+    if target_policy == "force":
+        support_delta[:, target_support_index] = np.float32(
+            np.log(target_remaining_fraction)
+        )
+    elif target_policy != "off":
+        raise RuntimeError(f"Unsupported exact-library target policy: {target_policy}")
+
+    current_to_support = np.full(base.shape[1], -1, dtype=np.int64)
+    current_to_support[mapping[valid_support]] = np.flatnonzero(valid_support)
+    integerization = {
+        "exact-largest-remainder": "largest-remainder",
+        "exact-multinomial": "multinomial",
+    }.get(emission)
+    if integerization is None:
+        raise RuntimeError(f"Unsupported exact-library emission: {emission}")
+
+    data_parts: list[np.ndarray] = []
+    index_parts: list[np.ndarray] = []
+    indptr = np.zeros(base.shape[0] + 1, dtype=np.int64)
+    source_libraries: list[int] = []
+    output_libraries: list[int] = []
+    removed_nnz = 0
+    redistributed_counts = 0
+    target_before = 0
+    target_after = 0
+    changed_cells = 0
+    library_mismatches = 0
+    current_only_mismatches = 0
+    precomposition_expected_total = 0.0
+    composition_normalization_values: list[float] = []
+    final_target_delta_values: list[float] = []
+    for row_index in range(base.shape[0]):
+        row_start, row_stop = base.indptr[row_index : row_index + 2]
+        base_indices = base.indices[row_start:row_stop]
+        base_values = base.data[row_start:row_stop]
+        output_indices, output_values, row_qc = transform_raw_row(
+            base_indices,
+            base_values,
+            support_delta[row_index],
+            current_to_support,
+            max_genes_per_cell,
+            integerization,
+            rng,
+        )
+        data_parts.append(output_values)
+        index_parts.append(output_indices)
+        indptr[row_index + 1] = indptr[row_index] + len(output_values)
+        source_libraries.append(int(row_qc["source_library"]))
+        output_libraries.append(int(row_qc["output_library"]))
+        removed_nnz += int(row_qc["removed_shared_nnz"])
+        redistributed_counts += int(row_qc["removed_shared_counts"])
+        changed_cells += int(bool(row_qc["changed"]))
+        library_mismatches += int(
+            row_qc["source_library"] != row_qc["output_library"]
+        )
+
+        base_only = current_to_support[base_indices] < 0
+        output_only = current_to_support[output_indices] < 0
+        if not (
+            np.array_equal(base_indices[base_only], output_indices[output_only])
+            and np.array_equal(base_values[base_only], output_values[output_only])
+        ):
+            current_only_mismatches += 1
+
+        precomposition_expected_total += float(
+            row_qc["current_only_counts"]
+            + row_qc["unnormalized_shared_expectation_total"]
+        )
+        composition_normalization_values.append(
+            float(row_qc["composition_normalization_factor"])
+        )
+        final_target_delta_values.append(
+            float(support_delta[row_index, target_support_index])
+        )
+
+        before_position = np.searchsorted(base_indices, target_current_index)
+        if (
+            before_position < len(base_indices)
+            and int(base_indices[before_position]) == target_current_index
+        ):
+            target_before += int(base_values[before_position])
+        after_position = np.searchsorted(output_indices, target_current_index)
+        if (
+            after_position < len(output_indices)
+            and int(output_indices[after_position]) == target_current_index
+        ):
+            target_after += int(output_values[after_position])
+
+    require(indptr[-1] < np.iinfo(np.int32).max, "Exact-library block exceeds int32 CSR")
+    matrix = sp.csr_matrix(
+        (
+            np.concatenate(data_parts).astype(np.int32, copy=False),
+            np.concatenate(index_parts).astype(np.int32, copy=False),
+            indptr.astype(np.int32),
+        ),
+        shape=base.shape,
+    )
+    matrix.sum_duplicates()
+    matrix.eliminate_zeros()
+    matrix.sort_indices()
+    source_total = int(np.sum(source_libraries, dtype=np.int64))
+    output_total = int(np.sum(output_libraries, dtype=np.int64))
+    require(source_total == output_total, "Exact-library emission changed count mass")
+    require(library_mismatches == 0, "Exact-library emission changed a cell library")
+    require(
+        current_only_mismatches == 0,
+        "Exact-library emission changed a protected current-only coordinate",
+    )
+    require(np.all(np.diff(matrix.indptr) <= max_genes_per_cell), "Row nnz cap failed")
+    require(np.all(matrix.data > 0), "Exact-library emission produced invalid counts")
+    return matrix, {
+        "output_library": summarize(np.asarray(output_libraries)),
+        "output_nnz": summarize(np.diff(matrix.indptr)),
+        "emitted_count_total_before_cap": source_total,
+        "emitted_count_total_after_cap": output_total,
+        "dropped_nnz_without_redistribution": 0,
+        "dropped_counts_without_redistribution": 0,
+        "redistributed_shared_nnz": int(removed_nnz),
+        "redistributed_shared_counts": int(redistributed_counts),
+        "changed_cell_fraction": float(changed_cells / base.shape[0]),
+        "library_size_mismatches": int(library_mismatches),
+        "current_only_count_mismatches": int(current_only_mismatches),
+        "precomposition_expected_count_total": float(
+            precomposition_expected_total
+        ),
+        "composition_normalization_values": np.asarray(
+            composition_normalization_values, dtype=np.float64
+        ),
+        "final_target_delta_values": np.asarray(
+            final_target_delta_values, dtype=np.float64
+        ),
+        "target_sum_before": int(target_before),
+        "target_sum_after": int(target_after),
     }
 
 
@@ -647,10 +859,12 @@ def build_group_block_v2(
     count_rng: np.random.Generator,
     args: argparse.Namespace,
 ) -> tuple[sp.csr_matrix, dict[str, Any]]:
-    """Generate one context-target block with independent count expectations."""
+    """Generate one context-target block with the selected count emitter."""
     blocks: list[sp.csr_matrix] = []
     raw_delta_moments = StreamingMoments()
     combined_delta_moments = StreamingMoments()
+    composition_normalization_moments = StreamingMoments()
+    final_target_delta_moments = StreamingMoments()
     input_libraries: list[int] = []
     output_libraries: list[float] = []
     state_outside = 0
@@ -660,6 +874,9 @@ def build_group_block_v2(
     induced_observed_entries = 0
     dropped_nnz = 0
     dropped_counts = 0
+    redistributed_shared_counts = 0
+    library_size_mismatches = 0
+    current_only_count_mismatches = 0
     target_before = 0
     target_after = 0
     input_count_total = 0
@@ -703,28 +920,53 @@ def build_group_block_v2(
         policy_values += int(fold_qc["values"])
 
         base_dense = chunk.toarray().astype(np.float64, copy=False)
-        expectation, expectation_qc = expected_counts(
-            base_dense,
-            log_fold,
-            pseudobulk_mean,
-            pseudobulk_weight=args.pseudobulk_blend_weight,
-            zero_induction_scale=args.zero_induction_scale,
-            depth_policy=args.pseudobulk_depth_policy,
-            target_index=target_current_index,
-            target_policy=args.target_policy,
-            target_remaining_fraction=args.target_max_remaining_fraction,
-        )
-        emitted, emission_qc = emit_independent_counts(
-            expectation,
-            count_rng,
-            emission=args.count_emission,
-            nb_dispersion=args.nb_dispersion,
-            max_genes_per_cell=args.max_genes_per_cell,
-            target_index=target_current_index,
-            target_policy=args.target_policy,
-            target_remaining_fraction=args.target_max_remaining_fraction,
-            base_target_counts=base_dense[:, target_current_index],
-        )
+        if args.count_emission.startswith("exact-"):
+            emitted, emission_qc = emit_exact_library_counts(
+                chunk,
+                log_fold,
+                support_to_current,
+                count_rng,
+                emission=args.count_emission,
+                max_genes_per_cell=args.max_genes_per_cell,
+                target_current_index=target_current_index,
+                target_policy=args.target_policy,
+                target_remaining_fraction=args.target_max_remaining_fraction,
+            )
+            expectation = base_dense
+            expectation_qc = {"induced_zero_entries": 0}
+            model_expected_count_total = float(
+                emission_qc["precomposition_expected_count_total"]
+            )
+            composition_normalization_moments.update(
+                emission_qc.pop("composition_normalization_values")
+            )
+            final_target_delta_moments.update(
+                emission_qc.pop("final_target_delta_values")
+            )
+        else:
+            expectation, expectation_qc = expected_counts(
+                base_dense,
+                log_fold,
+                pseudobulk_mean,
+                pseudobulk_weight=args.pseudobulk_blend_weight,
+                zero_induction_scale=args.zero_induction_scale,
+                depth_policy=args.pseudobulk_depth_policy,
+                target_index=target_current_index,
+                target_policy=args.target_policy,
+                target_remaining_fraction=args.target_max_remaining_fraction,
+            )
+            emitted, emission_qc = emit_independent_counts(
+                expectation,
+                count_rng,
+                emission=args.count_emission,
+                nb_dispersion=args.nb_dispersion,
+                max_genes_per_cell=args.max_genes_per_cell,
+                target_index=target_current_index,
+                target_policy=args.target_policy,
+                target_remaining_fraction=args.target_max_remaining_fraction,
+                base_target_counts=base_dense[:, target_current_index],
+            )
+            model_expected_count_total = float(expectation.sum(dtype=np.float64))
         blocks.append(emitted)
         input_libraries.extend(
             np.asarray(chunk.sum(axis=1)).ravel().astype(np.int64).tolist()
@@ -738,8 +980,15 @@ def build_group_block_v2(
         induced_observed_entries += int(np.count_nonzero(base_zero & (emitted_dense > 0)))
         dropped_nnz += int(emission_qc["dropped_nnz_without_redistribution"])
         dropped_counts += int(emission_qc["dropped_counts_without_redistribution"])
+        redistributed_shared_counts += int(emission_qc["redistributed_shared_counts"])
+        library_size_mismatches += int(
+            emission_qc.get("library_size_mismatches", 0)
+        )
+        current_only_count_mismatches += int(
+            emission_qc.get("current_only_count_mismatches", 0)
+        )
         input_count_total += int(base_dense.sum(dtype=np.float64))
-        expected_count_total += float(expectation.sum(dtype=np.float64))
+        expected_count_total += model_expected_count_total
         emitted_count_total_before_cap += int(
             emission_qc["emitted_count_total_before_cap"]
         )
@@ -771,6 +1020,17 @@ def build_group_block_v2(
         "delta_definition": "state(target, basal)-state(non-targeting, identical basal)",
         "raw_state_delta": raw_delta_moments.report(),
         "combined_log_fold": combined_delta_moments.report(),
+        "combined_log_fold_stage": "before exact-emission target-force override",
+        "composition_normalization_factor": (
+            composition_normalization_moments.report()
+            if args.count_emission.startswith("exact-")
+            else None
+        ),
+        "final_target_delta": (
+            final_target_delta_moments.report()
+            if args.count_emission.startswith("exact-")
+            else None
+        ),
         "state_outside_bound": state_outside,
         "combined_outside_bound": combined_outside,
         "effect_values": policy_values,
@@ -782,6 +1042,17 @@ def build_group_block_v2(
         "induced_zero_emitted_entries": induced_observed_entries,
         "dropped_nnz_without_redistribution": dropped_nnz,
         "dropped_counts_without_redistribution": dropped_counts,
+        "redistributed_shared_counts": redistributed_shared_counts,
+        "library_size_mismatches": (
+            library_size_mismatches
+            if args.count_emission.startswith("exact-")
+            else None
+        ),
+        "current_only_count_mismatches": (
+            current_only_count_mismatches
+            if args.count_emission.startswith("exact-")
+            else None
+        ),
         "count_mass": {
             "source_input_count_total": input_count_total,
             "model_expected_count_total": expected_count_total,
@@ -799,9 +1070,14 @@ def build_group_block_v2(
                 abs(emitted_count_total_after_cap - input_count_total)
                 / input_count_total
             ),
-            "signed_emission_rounding_fraction": float(
+            "signed_output_vs_model_expectation_fraction": float(
                 (emitted_count_total_before_cap - expected_count_total)
                 / expected_count_total
+            ),
+            "expectation_comparison_kind": (
+                "exact-composition-projection-before-cap"
+                if args.count_emission.startswith("exact-")
+                else "independent-integerization-before-cap"
             ),
         },
         "target_sum_before": target_before,
@@ -848,10 +1124,14 @@ def aggregate_count_mass_qc(
         dropped_fraction = float(dropped / before_cap)
         signed_library_drift = float((after_cap - source) / source)
         absolute_library_drift = abs(signed_library_drift)
-        signed_rounding_drift = float((before_cap - expected) / expected)
+        signed_expectation_drift = float((before_cap - expected) / expected)
+        comparison_kinds = {
+            str(item["expectation_comparison_kind"]) for item in masses
+        }
+        require(len(comparison_kinds) == 1, "Mixed count-expectation semantics")
         require(
             np.isfinite(
-                [dropped_fraction, signed_library_drift, signed_rounding_drift]
+                [dropped_fraction, signed_library_drift, signed_expectation_drift]
             ).all(),
             "Non-finite count-mass QC",
         )
@@ -865,7 +1145,8 @@ def aggregate_count_mass_qc(
             "dropped_count_fraction": dropped_fraction,
             "signed_library_drift_fraction": signed_library_drift,
             "absolute_library_drift_fraction": absolute_library_drift,
-            "signed_emission_rounding_fraction": signed_rounding_drift,
+            "signed_output_vs_model_expectation_fraction": signed_expectation_drift,
+            "expectation_comparison_kind": comparison_kinds.pop(),
         }
 
     overall = summarize_scope(groups)
@@ -1175,17 +1456,54 @@ def main() -> None:
             validation = validate_backed_candidate(
                 final_temporary, genes, targets, args.cells_per_group, total_nnz
             )
-            if args.target_policy == "clamp":
+            if args.target_policy in ("clamp", "force"):
+                realized_target_gate = (
+                    0.50
+                    if args.target_policy == "force"
+                    else args.target_max_remaining_fraction
+                )
                 target_failures = [
                     f"{item['context']}|{item['target_gene']}"
                     for item in group_qc
                     if item["target_sum_before"] >= 20
                     and item["target_remaining_fraction"]
-                    > args.target_max_remaining_fraction + 1e-12
+                    > realized_target_gate + 1e-12
                 ]
-                require(not target_failures, "One or more groups failed target clamp QC")
+                require(not target_failures, "One or more groups failed target-policy QC")
             else:
+                realized_target_gate = None
                 target_failures = []
+            if (
+                args.target_policy == "force"
+                and args.count_emission.startswith("exact-")
+            ):
+                forced_target_delta = float(
+                    np.log(args.target_max_remaining_fraction)
+                )
+                target_delta_failures = [
+                    f"{item['context']}|{item['target_gene']}"
+                    for item in group_qc
+                    if item["final_target_delta"] is None
+                    or not np.isclose(
+                        item["final_target_delta"]["min"],
+                        forced_target_delta,
+                        rtol=0,
+                        atol=1e-7,
+                    )
+                    or not np.isclose(
+                        item["final_target_delta"]["max"],
+                        forced_target_delta,
+                        rtol=0,
+                        atol=1e-7,
+                    )
+                ]
+                require(
+                    not target_delta_failures,
+                    "One or more exact groups failed the final target-delta gate",
+                )
+            else:
+                forced_target_delta = None
+                target_delta_failures = []
             count_mass_qc = aggregate_count_mass_qc(
                 group_qc,
                 max_dropped_count_fraction=args.max_dropped_count_fraction,
@@ -1207,7 +1525,11 @@ def main() -> None:
             "created_utc_epoch": time.time(),
             "elapsed_seconds": elapsed,
             "command": [sys.executable, *sys.argv],
-            "method": "paired STATE residuals with independent scorer-aware count emission",
+            "method": (
+                "paired STATE anchor plus gated residual with exact-library emission"
+                if args.count_emission.startswith("exact-")
+                else "paired STATE residuals with independent scorer-aware count emission"
+            ),
             "full_official_contract": full_contract,
             "configuration": {
                 "seed": args.seed,
@@ -1228,22 +1550,51 @@ def main() -> None:
                 "target_policy": args.target_policy,
                 "target_max_remaining_fraction": args.target_max_remaining_fraction,
                 "count_emission": args.count_emission,
+                "emission_contract_version": (
+                    "state-composition-v1"
+                    if args.count_emission.startswith("exact-")
+                    else "independent-gene-v1"
+                ),
                 "nb_dispersion": args.nb_dispersion,
                 "max_genes_per_cell": args.max_genes_per_cell,
                 "max_dropped_count_fraction": args.max_dropped_count_fraction,
                 "max_absolute_library_drift_fraction": (
                     args.max_absolute_library_drift_fraction
                 ),
-                "library_policy": "independent-gene-expectations; no total renormalization",
-                "nnz_cap_policy": "drop-low-count-genes-without-redistribution",
+                "library_policy": (
+                    "exact-source-library-composition"
+                    if args.count_emission.startswith("exact-")
+                    else "independent-gene-expectations; no total renormalization"
+                ),
+                "nnz_cap_policy": (
+                    "drop-low-source-count-shared-genes-and-redistribute"
+                    if args.count_emission.startswith("exact-")
+                    else "drop-low-count-genes-without-redistribution"
+                ),
                 "zero_entry_policy": (
                     "source zeros remain zero unless an explicit pseudobulk mean is blended"
                 ),
             },
             "scorer_contract": {
                 "perturbed_gene_excluded_from_all_six_metrics": True,
-                "target_force_default": "off",
-                "target_clamp_changes_other_coordinates": False,
+                "target_policy_used": args.target_policy,
+                "target_model_space_remaining_fraction": (
+                    args.target_max_remaining_fraction
+                    if args.target_policy in ("clamp", "force")
+                    else None
+                ),
+                "target_realized_remaining_fraction_gate": realized_target_gate,
+                "target_policy_changes_other_coordinates": bool(
+                    args.target_policy == "force"
+                    and args.count_emission.startswith("exact-")
+                ),
+                "target_force_order": (
+                    "after-combined-effect-clip-before-composition-normalization"
+                    if args.target_policy == "force"
+                    and args.count_emission.startswith("exact-")
+                    else None
+                ),
+                "combined_effect_qc_includes_target_force": False,
             },
             "model": model_info,
             "checkpoint_selection": {
@@ -1257,11 +1608,29 @@ def main() -> None:
                 "current_genes": len(genes),
                 "support_genes": len(support_genes),
                 "shared_genes": int(np.count_nonzero(valid_support)),
+                "current_only_genes_preserved": int(
+                    len(genes) - np.count_nonzero(valid_support)
+                ),
                 "perturbation_embedding_dimension": int(var_dims["pert_dim"]),
             },
             "validation": validation,
             "scientific_qc": {
-                "target_clamp_failures": target_failures,
+                "target_policy_failures": target_failures,
+                "final_target_delta_failures": target_delta_failures,
+                "forced_target_delta": forced_target_delta,
+                "all_libraries_exact": (
+                    all(item["library_size_mismatches"] == 0 for item in group_qc)
+                    if args.count_emission.startswith("exact-")
+                    else None
+                ),
+                "all_current_only_counts_exact": (
+                    all(
+                        item["current_only_count_mismatches"] == 0
+                        for item in group_qc
+                    )
+                    if args.count_emission.startswith("exact-")
+                    else None
+                ),
                 "input_library": summarize(
                     np.asarray([item["input_library"]["mean"] for item in group_qc])
                 ),
@@ -1276,6 +1645,9 @@ def main() -> None:
                 ),
                 "dropped_counts_without_redistribution": int(
                     sum(item["dropped_counts_without_redistribution"] for item in group_qc)
+                ),
+                "redistributed_shared_counts": int(
+                    sum(item["redistributed_shared_counts"] for item in group_qc)
                 ),
                 "count_mass": count_mass_qc,
             },

@@ -144,8 +144,49 @@ V5 is an amplitude-rescue calibration, not a larger model. It disables the
 dense absolute-pseudobulk/zero-induction branch, shrinks common response to
 `0.10`, retains centered target-specific response at `0.22`, and tightens
 count-mass gates. Its single-H100 smoke is versioned separately and cannot be
-submitted. Full generation and packaging remain separate promotion gates; no
-V5 leaderboard submission has been made.
+submitted. Its full official-shape generation and package also passed every
+format and integrity gate, but no V5 leaderboard submission has been made.
+Those facts are historical and distinct from the public-data V5.1 validation
+lane described below.
+
+## Authenticated public V5.1 and V6 validation
+
+V5.1 adds a power-zero public perturbation residual at alpha `0.10` to the
+paired-count STATE anchor while retaining a forced model-space target fold of
+`0.20`. It was evaluated on complete 300-target HepG2 and Jurkat panels with
+400 generated cells per target. HepG2 is the primary zero-shot context;
+Jurkat, which was present in STATE training, is only an in-distribution
+non-harm check. Every score directory was authenticated before comparison
+with cell-eval2 commit `5e64833518a6603a0301cbe28185d49c30f4a986`, declared
+version `0.16.0`, and pdex `0.3.0`.
+
+Relative to the matched STATE anchor, V5.1 improved all six oriented aggregate
+metrics in both contexts. On HepG2, the all-target improvements were PDS
+`+0.050569`, official ratio-of-sums MSE `+0.009696`, NMAE `+0.005918`,
+direction fidelity `+0.009731`, direction reach `+0.025245`, and Jaccard
+`+0.002373`. All six direct-target one-sided 90% paired-bootstrap lower bounds
+were positive across 10,000 resamples. The primary zero-shot, Jurkat non-harm,
+and joint promotion gates therefore passed. The sanitized decision is
+[tracked here](results/public_v51/validation_decision.json); it establishes a
+validated public-data incumbent, not an official leaderboard score.
+
+The first V6 P2 experiment redistributed the same residual energy with
+reliability power `0.5` and alpha `0.1248983248`. Against the V5.1 incumbent on
+HepG2 it changed all-target PDS by `+0.000312`, but regressed official MSE by
+`-0.000280`, fidelity by `-0.001629`, reach by `-0.000225`, and Jaccard by
+`-0.000011`; the adverse MSE interval excluded zero. P2 failed the all-target
+and direct-target gates and was not run on Jurkat. See the
+[P2 decision](results/public_v6/p2_reliability_decision.json) and the
+[authenticated V6 workflow](docs/PUBLIC_V6_ALPHA_CALIBRATION.md).
+
+The next pre-registered step is the V6 P3 target-force factorial: compare only
+two new HepG2 arms at target fold `0.40` against the existing matched `0.20`
+controls, with residual alpha `0.00` and `0.10`. No P3 generation or scoring
+job has run yet. The immutable factors, contrasts, and promotion rule are in
+[the P3 decision](docs/PUBLIC_V6_P3_FACTORIAL_DECISION.md); the
+[four-arm provenance contract](docs/PUBLIC_V6_P3_FACTOR_CONTRACT.md) and
+[held-target count-identity gate](docs/PUBLIC_V6_P3_COUNT_IDENTITY.md) are
+mandatory before selection.
 
 The downloaded Feng multi-iPSC atlas adds 850,726 normalized-log1p cells,
 6,699 perturbations, and 182 direct validation-target overlaps for future

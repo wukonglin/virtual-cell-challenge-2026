@@ -1,0 +1,71 @@
+{
+  "schema": "vcc-public-v51-validation-decision-v1",
+  "created_date": "2026-09-01",
+  "candidate": {
+    "tag": "v51_alpha010",
+    "state_weight": 1.0,
+    "residual_power": 0.0,
+    "residual_alpha": 0.1,
+    "target_remaining_fraction": 0.2,
+    "cells_per_target": 400
+  },
+  "contexts": {
+    "HepG2": {
+      "role": "primary_zero_shot",
+      "results_sha256": "877dbd7cf668b896af9db930e4a7c14df8e41b1d383d8d9d9e4d127cb0637bf7",
+      "all_oriented_improvement": {
+        "pds_cosine": 0.0505685618729097,
+        "expr_mse_unbiased_capped_norm": 0.009695667308303069,
+        "de_wilcoxon_lfc_nmae": 0.00591835184253009,
+        "de_wilcoxon_direction_fidelity_yield_raw": 0.009731464164523307,
+        "de_wilcoxon_direction_reach_raw": 0.02524429679062941,
+        "de_wilcoxon_sig_jaccard": 0.0023731407601409737
+      },
+      "direct_oriented_improvement": {
+        "pds_cosine": 0.05681860884596601,
+        "expr_mse_unbiased_capped_norm": 0.010576102278894384,
+        "de_wilcoxon_lfc_nmae": 0.00652849120773924,
+        "de_wilcoxon_direction_fidelity_yield_raw": 0.010971380448033974,
+        "de_wilcoxon_direction_reach_raw": 0.02856864863137075,
+        "de_wilcoxon_sig_jaccard": 0.002666450292293232
+      },
+      "direct_bootstrap_one_sided_90pct_lower_bounds": {
+        "pds_cosine": 0.05150626933724142,
+        "expr_mse_unbiased_capped_norm": 0.00985364839125078,
+        "de_wilcoxon_lfc_nmae": 0.005609401766736233,
+        "de_wilcoxon_direction_fidelity_yield_raw": 0.006062102341227817,
+        "de_wilcoxon_direction_reach_raw": 0.016175164095813387,
+        "de_wilcoxon_sig_jaccard": 0.0017532311805950173
+      }
+    },
+    "Jurkat": {
+      "role": "in_distribution_non_harm",
+      "results_sha256": "82f77069deb9b8ac8063a6550e3ade38f367b7fbb872b781190f7e9a086b045e",
+      "all_oriented_improvement": {
+        "pds_cosine": 0.040178372352285274,
+        "expr_mse_unbiased_capped_norm": 0.010882213814185748,
+        "de_wilcoxon_lfc_nmae": 0.005785110579771935,
+        "de_wilcoxon_direction_fidelity_yield_raw": 0.004765693151431272,
+        "de_wilcoxon_direction_reach_raw": 0.018154679052276274,
+        "de_wilcoxon_sig_jaccard": 0.0013267453745269275
+      }
+    }
+  },
+  "scoring": {
+    "cell_eval2_git_commit": "5e64833518a6603a0301cbe28185d49c30f4a986",
+    "cell_eval2_declared_version": "0.16.0",
+    "pdex_version": "0.3.0",
+    "hepg2_scoring_receipt_sha256": "f40b3a73c38db0fb54bcf186b2cde221a1b6b3e6dd8d4688b7eef53cd6ea13a0",
+    "jurkat_scoring_receipt_sha256": "4f72103d3558cca84f41739f1db88d74182af67c4b31374f1044f0690701dc1a",
+    "full_receipt_chain_revalidated": true,
+    "comparison_sha256": "3f1a1ce576e196025c784a33743d6d47c0f78dee33c0e89561d0998093b32904",
+    "paired_bootstrap_sha256": "4dfc64f72f78cb8e12a66700928321f5d30f9ad8206caab3f233dec818987f4a"
+  },
+  "decision": {
+    "hepg2_primary_gate_passed": true,
+    "jurkat_non_harm_gate_passed": true,
+    "aggregate_gate_passed": true,
+    "all_six_hepg2_direct_bootstrap_lower_bounds_positive": true,
+    "incumbent_for_v6": true
+  }
+}

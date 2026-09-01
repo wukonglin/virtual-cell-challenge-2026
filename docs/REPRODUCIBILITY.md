@@ -580,6 +580,74 @@ The sanitized full receipt is `results/v5/full_candidate.json`. This candidate
 has not been submitted; format integrity and improved count calibration do not
 by themselves establish leaderboard superiority.
 
+### Authenticated V5.1 public validation
+
+V5.1 is a separate public-data validation lane, not a retrospective claim
+about the unsubmitted V5 official package. It evaluates a paired-count STATE
+anchor and a power-zero public perturbation residual at alpha `0.10`, with a
+forced model-space target remaining fraction of `0.20`. Each context contains
+all 300 panel targets and 400 generated cells per target. HepG2 is the primary
+zero-shot context because it was excluded from STATE training; Jurkat is an
+in-distribution non-harm context.
+
+The scoring receipts pin cell-eval2 commit
+`5e64833518a6603a0301cbe28185d49c30f4a986`, declared version `0.16.0`, and
+pdex `0.3.0`. Validation reconstructs expression MSE as the official ratio of
+the complete numerator and denominator sums, authenticates the matched NMAE
+omission subset, and retains model-dependent NaN masks for direction metrics.
+The candidate and anchor truth views are byte-identical. Held-target count
+matrices are also exact; small held-panel MSE changes can still arise from the
+official panel-wide predicted-control correction and are not output drift.
+
+Against the matched STATE anchor, the candidate improved all six oriented
+aggregate metrics in both contexts. The HepG2 all-target changes were PDS
+`+0.0505685619`, MSE `+0.0096956673`, NMAE `+0.0059183518`, fidelity
+`+0.0097314642`, reach `+0.0252442968`, and Jaccard `+0.0023731408`.
+The corresponding direct-target changes were `+0.0568186088`,
+`+0.0105761023`, `+0.0065284912`, `+0.0109713804`, `+0.0285686486`, and
+`+0.0026664503`. All six direct-target one-sided 90% lower bounds were positive
+in 10,000 paired bootstrap resamples with seed `20260901`. Jurkat likewise
+improved all six aggregate metrics, so the primary, non-harm, and joint gates
+passed.
+
+The small sanitized record is
+[`results/public_v51/validation_decision.json`](../results/public_v51/validation_decision.json).
+Large predictions, scorer caches, truth views, and detailed receipts remain
+untracked under `artifacts/public_v51`. This result makes V5.1 the incumbent
+for subsequent public-data ablations; it is not an official VCC submission or
+leaderboard score.
+
+### V6 sequential ablations
+
+V6 keeps each candidate isolated under `artifacts/public_v6`, authenticates an
+immutable pre-inference spec, and refuses scoring unless generation verification
+passes. The first P2 candidate changed only residual allocation: reliability
+power `0.5`, alpha `0.1248983248`, and total residual energy matched to the
+V5.1 power-zero alpha-`0.10` incumbent. It completed authenticated generation
+and HepG2 scoring, but failed promotion. Relative to V5.1, its all-target
+oriented changes were PDS `+0.0003121516`, MSE `-0.0002796614`, NMAE
+`+0.0000391370`, fidelity `-0.0016294632`, reach `-0.0002250083`, and Jaccard
+`-0.0000113371`. The two-sided 90% paired-bootstrap MSE interval was
+`[-0.0004250866, -0.0001381588]`; P2 therefore failed both primary point gates
+and was not promoted to Jurkat.
+
+The sanitized P2 record is
+[`results/public_v6/p2_reliability_decision.json`](../results/public_v6/p2_reliability_decision.json),
+and the executable contract is documented in
+[`PUBLIC_V6_ALPHA_CALIBRATION.md`](PUBLIC_V6_ALPHA_CALIBRATION.md).
+
+The next pre-registered P3 step changes target force while returning to the
+validated power-zero residual. It requires exactly two new HepG2 arms at a
+model-space target remaining fraction of `0.40`: STATE-only alpha `0.00` and
+residual alpha `0.10`. The existing V5.1 anchor and incumbent are the matched
+`0.20` arms. As of 2026-09-01, no P3 generation or scoring job has run; do not
+describe P3 as evaluated. Commands, causal contrasts, held-target invariants,
+and the deterministic promotion rule are pre-registered in
+[`PUBLIC_V6_P3_FACTORIAL_DECISION.md`](PUBLIC_V6_P3_FACTORIAL_DECISION.md).
+Selection also requires the
+[`four-arm provenance contract`](PUBLIC_V6_P3_FACTOR_CONTRACT.md) and the
+[`held-target count-identity gate`](PUBLIC_V6_P3_COUNT_IDENTITY.md).
+
 Build the raw HepG2 and Jurkat response atlases as independent research jobs:
 
 ```bash

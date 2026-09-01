@@ -26,7 +26,11 @@ export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-8}"
 export MKL_NUM_THREADS="${SLURM_CPUS_PER_TASK:-8}"
 export PYTHONUNBUFFERED=1
 
-for required_path in "$PYTHON_BIN" "$INPUT_H5AD" scripts/build_raw_effect_atlas.py; do
+for required_path in \
+  "$PYTHON_BIN" \
+  "$INPUT_H5AD" \
+  scripts/build_raw_effect_atlas.py \
+  scripts/build_bulk_effect_atlas.py; do
   if [[ ! -r "$required_path" ]]; then
     echo "Missing required input: $required_path" >&2
     exit 2
@@ -62,4 +66,66 @@ nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv,nohead
 
 test -s "$OUTPUT_NPZ"
 test -s "$OUTPUT_JSON"
+
+"$PYTHON_BIN" - "$OUTPUT_NPZ" "$OUTPUT_JSON" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+
+import numpy as np
+
+
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise RuntimeError(message)
+
+
+npz_path = pathlib.Path(sys.argv[1])
+report = json.loads(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
+require(report["schema"] == "vcc-raw-effect-atlas-v1", "Unexpected schema")
+require(report["contract"]["targets"] == 2137, "Unexpected target count")
+require(report["contract"]["genes"] == 8881, "Unexpected gene count")
+require(
+    report["contract"]["input_gene_columns"] == 8882,
+    "Unexpected input gene-column count",
+)
+require(report["contract"]["batches"] == 55, "Unexpected batch count")
+require(
+    report["contract"]["collapsed_duplicate_columns"] == 1,
+    "Unexpected duplicate-column count",
+)
+require(
+    report["contract"]["duplicate_symbols_collapsed_by_sum"] == {"HSPA14": 2},
+    "Unexpected duplicate-symbol contract",
+)
+sources = report["contract"]["duplicate_gene_sources"]["HSPA14"]
+require(
+    {item["source_var_name"] for item in sources}
+    == {"ENSG00000187522", "ENSG00000284024"},
+    "Unexpected HSPA14 source identifiers",
+)
+require(report["runtime"]["device"].startswith("cuda"), "CUDA was not used")
+require("H100" in report["runtime"]["cuda_device"], "H100 was not used")
+require(
+    report["output"]["sha256"]
+    == hashlib.sha256(npz_path.read_bytes()).hexdigest(),
+    "Output hash mismatch",
+)
+with np.load(npz_path, allow_pickle=False) as archive:
+    require(archive["effects"].shape == (2137, 8881), "Unexpected effect shape")
+    require(
+        archive["matched_control_profiles"].shape == (2137, 8881),
+        "Unexpected matched-control shape",
+    )
+    require(len(np.unique(archive["gene_names"])) == 8881, "Duplicate genes")
+    require(len(np.unique(archive["target_names"])) == 2137, "Duplicate targets")
+    require(int(archive["target_cell_counts"].min()) >= 30, "Cell-count gate failed")
+    require(np.all(archive["control_batch_counts"] > 0), "Empty control batch")
+    require(
+        archive["gene_duplicate_positions"].tolist() == [4287],
+        "Unexpected duplicate-gene position",
+    )
+print("Jurkat raw effect-atlas gates passed")
+PY
 date --iso-8601=seconds

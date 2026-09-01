@@ -581,6 +581,8 @@ def transform_raw_row(
         "output_nnz": int(len(output_indices)),
         "current_only_nnz": int(len(current_only_indices)),
         "current_only_counts": current_only_total,
+        "unnormalized_shared_expectation_total": weight_total,
+        "composition_normalization_factor": float(shared_total / weight_total),
         "removed_shared_nnz": removed_shared_nnz,
         "removed_shared_counts": removed_shared_counts,
         "changed": not unchanged,

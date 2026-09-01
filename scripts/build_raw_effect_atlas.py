@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import platform
 import socket
 import sys
@@ -23,6 +24,8 @@ from pathlib import Path
 import anndata as ad
 import numpy as np
 import torch
+
+from build_bulk_effect_atlas import resolve_gene_axis
 
 
 SCHEMA = "vcc-raw-effect-atlas-v1"
@@ -88,6 +91,22 @@ def main() -> None:
     require(args.chunk_rows > 0, "chunk-rows must be positive")
     for output in (args.output_npz, args.output_json):
         require(not output.exists(), f"Refusing to overwrite {output}")
+    require(
+        args.output_npz.parent.resolve() == args.output_json.parent.resolve(),
+        "output_npz and output_json must share one directory",
+    )
+    args.output_npz.parent.mkdir(parents=True, exist_ok=True)
+    temporary_npz = args.output_npz.with_name(
+        f".{args.output_npz.stem}.{os.getpid()}.partial.npz"
+    )
+    temporary_json = args.output_json.with_name(
+        f".{args.output_json.stem}.{os.getpid()}.partial.json"
+    )
+    for temporary_output in (temporary_npz, temporary_json):
+        require(
+            not temporary_output.exists(),
+            f"Refusing to overwrite staging output {temporary_output}",
+        )
 
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -102,8 +121,20 @@ def main() -> None:
 
         perturbations = data.obs[args.pert_col].astype(str).to_numpy()
         batches_raw = data.obs[args.batch_col].astype(str).to_numpy()
-        genes = data.var[args.gene_col].astype(str).to_numpy()
-        require(len(set(genes)) == len(genes), "Gene symbols must be unique")
+        raw_gene_names = data.var[args.gene_col].astype(str).to_numpy(dtype="U")
+        raw_gene_ids = data.var_names.astype(str).to_numpy(dtype="U")
+        gene_collapser = resolve_gene_axis(data, args)
+        genes = gene_collapser.genes
+        duplicate_gene_sources = {
+            gene: [
+                {
+                    "source_column": int(position),
+                    "source_var_name": str(raw_gene_ids[position]),
+                }
+                for position in np.flatnonzero(raw_gene_names == gene)
+            ]
+            for gene in gene_collapser.duplicate_symbols
+        }
 
         unique, counts = np.unique(perturbations, return_counts=True)
         target_names = sorted(
@@ -121,7 +152,7 @@ def main() -> None:
 
         n_targets = len(target_names)
         n_batches = len(batch_names)
-        n_genes = data.n_vars
+        n_genes = len(genes)
         target_cell_counts = np.bincount(
             target_codes[target_codes >= 0], minlength=n_targets
         ).astype(np.int64)
@@ -150,6 +181,7 @@ def main() -> None:
                 np.max(np.abs(values_np - np.rint(values_np))) == 0,
                 "Input expression must contain raw integer counts",
             )
+            values_np = gene_collapser.collapse(values_np)
             values = torch.from_numpy(values_np).to(device=device, dtype=torch.float64)
 
             local_targets = target_codes[begin:end]
@@ -203,13 +235,17 @@ def main() -> None:
         control_profiles_np = control_profiles.to(torch.float32).cpu().numpy()
         require(np.isfinite(effects).all(), "Computed effects contain non-finite values")
 
-        args.output_npz.parent.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(
-            args.output_npz,
+            temporary_npz,
             effects=effects,
             matched_control_profiles=control_profiles_np,
             target_names=np.asarray(target_names, dtype="U"),
             gene_names=genes.astype("U"),
+            input_gene_names=raw_gene_names,
+            input_gene_ids=raw_gene_ids,
+            gene_first_positions=gene_collapser.first_positions,
+            gene_duplicate_positions=gene_collapser.duplicate_positions,
+            gene_duplicate_destinations=gene_collapser.duplicate_destinations,
             target_cell_counts=target_cell_counts,
             batch_names=np.asarray(batch_names, dtype="U"),
             target_batch_counts=target_batch_counts,
@@ -220,7 +256,7 @@ def main() -> None:
         data.file.close()
 
     input_sha256 = sha256_file(args.input_h5ad)
-    output_sha256 = sha256_file(args.output_npz)
+    output_sha256 = sha256_file(temporary_npz)
     report = {
         "schema": SCHEMA,
         "created_unix": time.time(),
@@ -232,7 +268,7 @@ def main() -> None:
         },
         "output": {
             "path": str(args.output_npz.resolve()),
-            "bytes": args.output_npz.stat().st_size,
+            "bytes": temporary_npz.stat().st_size,
             "sha256": output_sha256,
         },
         "contract": {
@@ -245,6 +281,12 @@ def main() -> None:
             "effect_space": "log1p-group-sum-cp50000-target-minus-batch-matched-control",
             "targets": len(target_names),
             "genes": len(genes),
+            "input_gene_columns": int(len(raw_gene_names)),
+            "collapsed_duplicate_columns": int(
+                len(gene_collapser.duplicate_positions)
+            ),
+            "duplicate_symbols_collapsed_by_sum": gene_collapser.duplicate_symbols,
+            "duplicate_gene_sources": duplicate_gene_sources,
             "batches": len(batch_names),
         },
         "runtime": {
@@ -258,8 +300,24 @@ def main() -> None:
             "torch": torch.__version__,
         },
     }
-    args.output_json.parent.mkdir(parents=True, exist_ok=True)
-    args.output_json.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    temporary_json.write_text(
+        json.dumps(report, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    npz_committed = False
+    try:
+        os.replace(temporary_npz, args.output_npz)
+        npz_committed = True
+        os.replace(temporary_json, args.output_json)
+    except BaseException:
+        # The JSON is the pair's commit marker. Roll back the first rename if
+        # the second rename fails so a normal error cannot strand a final NPZ.
+        if npz_committed and not args.output_json.exists():
+            args.output_npz.unlink(missing_ok=True)
+        raise
+    finally:
+        temporary_npz.unlink(missing_ok=True)
+        temporary_json.unlink(missing_ok=True)
     print(json.dumps(report, indent=2), flush=True)
 
 

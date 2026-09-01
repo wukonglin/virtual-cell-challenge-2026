@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
+import scipy.sparse as sp
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
@@ -19,12 +20,15 @@ if str(SCRIPTS) not in sys.path:
 from generate_state_scorer_aware_counts import (  # noqa: E402
     aggregate_count_mass_qc,
     combine_log_fold,
+    emit_exact_library_counts,
     emit_independent_counts,
     expected_counts,
     load_pseudobulk_bundle,
     load_response_bundle,
     parse_args,
+    validate_args,
 )
+from generate_state_direct_counts import transform_raw_row  # noqa: E402
 
 
 class ScorerAwarePolicyTests(unittest.TestCase):
@@ -34,6 +38,29 @@ class ScorerAwarePolicyTests(unittest.TestCase):
         self.assertEqual(args.target_policy, "off")
         self.assertEqual(args.count_emission, "round")
         self.assertEqual(args.pseudobulk_blend_weight, 0.0)
+
+    def test_target_force_requires_a_strict_knockdown_fraction(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            argv = [
+                "generator",
+                "--model-dir",
+                "model",
+                "--output-h5ad",
+                str(root / "candidate.h5ad"),
+                "--output-json",
+                str(root / "candidate.json"),
+                "--target-policy",
+                "force",
+                "--target-max-remaining-fraction",
+                "1.0",
+                "--count-emission",
+                "exact-largest-remainder",
+            ]
+            with patch.object(sys, "argv", argv):
+                args = parse_args()
+            with self.assertRaisesRegex(RuntimeError, "remaining fraction below one"):
+                validate_args(args)
 
     def test_target_clamp_does_not_redistribute_counts(self) -> None:
         base = np.asarray([[10.0, 20.0, 30.0]])
@@ -155,6 +182,99 @@ class ScorerAwarePolicyTests(unittest.TestCase):
         )
         np.testing.assert_array_equal(first.toarray(), second.toarray())
 
+    def test_exact_emission_preserves_library_and_redistributes_cap_mass(self) -> None:
+        base = sp.csr_matrix(np.asarray([[5, 3, 2, 7]], dtype=np.int32))
+        emitted, qc = emit_exact_library_counts(
+            base,
+            np.zeros((1, 4), dtype=np.float32),
+            np.asarray([0, 1, 2], dtype=np.int64),
+            np.random.default_rng(7),
+            emission="exact-largest-remainder",
+            max_genes_per_cell=3,
+            target_current_index=1,
+            target_policy="off",
+            target_remaining_fraction=0.2,
+        )
+        np.testing.assert_array_equal(emitted.toarray(), np.asarray([[6, 4, 0, 7]]))
+        self.assertEqual(int(emitted.sum()), int(base.sum()))
+        self.assertEqual(qc["dropped_counts_without_redistribution"], 0)
+        self.assertEqual(qc["redistributed_shared_counts"], 2)
+        self.assertEqual(qc["library_size_mismatches"], 0)
+        self.assertEqual(qc["current_only_count_mismatches"], 0)
+        self.assertLessEqual(int(np.diff(emitted.indptr).max()), 3)
+
+    def test_exact_emission_matches_scored_allocator_at_zero_residual(self) -> None:
+        base = sp.csr_matrix(np.asarray([[10, 20, 0, 4]], dtype=np.int32))
+        support_to_current = np.asarray([0, 1, 2], dtype=np.int64)
+        log_fold = np.asarray([[0.2, -0.1, 0.0, 0.0]], dtype=np.float32)
+        emitted, qc = emit_exact_library_counts(
+            base,
+            log_fold,
+            support_to_current,
+            np.random.default_rng(11),
+            emission="exact-largest-remainder",
+            max_genes_per_cell=4,
+            target_current_index=1,
+            target_policy="force",
+            target_remaining_fraction=0.2,
+        )
+
+        support_delta = log_fold[:, support_to_current].copy()
+        support_delta[:, 1] = np.log(0.2)
+        current_to_support = np.asarray([0, 1, 2, -1], dtype=np.int64)
+        indices, values, _ = transform_raw_row(
+            base.indices,
+            base.data,
+            support_delta[0],
+            current_to_support,
+            4,
+            "largest-remainder",
+            np.random.default_rng(11),
+        )
+        expected = sp.csr_matrix(
+            (values, indices, np.asarray([0, len(indices)])), shape=base.shape
+        )
+        np.testing.assert_array_equal(emitted.toarray(), expected.toarray())
+        self.assertEqual(int(emitted.sum()), int(base.sum()))
+        np.testing.assert_allclose(qc["final_target_delta_values"], np.log(0.2))
+        self.assertGreater(qc["precomposition_expected_count_total"], 0)
+        self.assertTrue(
+            np.isfinite(qc["composition_normalization_values"]).all()
+        )
+
+    def test_exact_emission_does_not_activate_source_zero_genes(self) -> None:
+        base = sp.csr_matrix(np.asarray([[5, 0, 7]], dtype=np.int32))
+        emitted, _ = emit_exact_library_counts(
+            base,
+            np.asarray([[0.0, 0.6, 0.0]], dtype=np.float32),
+            np.asarray([0, 1, 2], dtype=np.int64),
+            np.random.default_rng(3),
+            emission="exact-largest-remainder",
+            max_genes_per_cell=3,
+            target_current_index=0,
+            target_policy="off",
+            target_remaining_fraction=0.2,
+        )
+        self.assertEqual(int(emitted[0, 1]), 0)
+        self.assertEqual(int(emitted.sum()), int(base.sum()))
+
+    def test_exact_emission_rejects_unrepresentable_current_only_effects(self) -> None:
+        base = sp.csr_matrix(np.asarray([[5, 3, 7]], dtype=np.int32))
+        with self.assertRaisesRegex(
+            RuntimeError, "cannot silently discard current-only effects"
+        ):
+            emit_exact_library_counts(
+                base,
+                np.asarray([[0.0, 0.0, 0.2]], dtype=np.float32),
+                np.asarray([0, 1], dtype=np.int64),
+                np.random.default_rng(3),
+                emission="exact-largest-remainder",
+                max_genes_per_cell=3,
+                target_current_index=0,
+                target_policy="off",
+                target_remaining_fraction=0.2,
+            )
+
 
 class CountMassGateTests(unittest.TestCase):
     @staticmethod
@@ -170,6 +290,7 @@ class CountMassGateTests(unittest.TestCase):
                 "dropped_count_total": dropped,
                 "dropped_count_fraction": dropped / before,
                 "absolute_library_drift_fraction": abs(after - source) / source,
+                "expectation_comparison_kind": "synthetic-test",
             },
         }
 
