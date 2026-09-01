@@ -179,14 +179,18 @@ and direct-target gates and was not run on Jurkat. See the
 [P2 decision](results/public_v6/p2_reliability_decision.json) and the
 [authenticated V6 workflow](docs/PUBLIC_V6_ALPHA_CALIBRATION.md).
 
-The next pre-registered step is the V6 P3 target-force factorial: compare only
-two new HepG2 arms at target fold `0.40` against the existing matched `0.20`
-controls, with residual alpha `0.00` and `0.10`. No P3 generation or scoring
-job has run yet. The immutable factors, contrasts, and promotion rule are in
-[the P3 decision](docs/PUBLIC_V6_P3_FACTORIAL_DECISION.md); the
-[four-arm provenance contract](docs/PUBLIC_V6_P3_FACTOR_CONTRACT.md) and
-[held-target count-identity gate](docs/PUBLIC_V6_P3_COUNT_IDENTITY.md) are
-mandatory before selection.
+P3 then evaluated target remaining fractions `0.20` and `0.40` in a matched
+two-by-two design with residual alphas `0.00` and `0.10`. Both new HepG2 arms
+completed strict single-H100 generation, authenticated cell-eval2 scoring,
+held-target count-identity checks, and a four-arm paired-bootstrap analysis.
+The residual remained strongly beneficial at both target-force levels, while
+changing the target remaining fraction was nearly neutral. Neither new arm
+passed the deployment gate against V5.1: the alpha-`0.10` arm at fraction
+`0.40` changed all-target PDS by `-0.000022`, MSE by `+0.000002`, NMAE by
+`-0.000002`, fidelity by `-0.000062`, reach by `+0.000054`, and Jaccard by
+`-0.000005`. V5.1 remains the incumbent; no Jurkat P3 run or official
+submission was made. See the
+[P3 decision](results/public_v6/p3_target_force_decision.json).
 
 The downloaded Feng multi-iPSC atlas adds 850,726 normalized-log1p cells,
 6,699 perturbations, and 182 direct validation-target overlaps for future

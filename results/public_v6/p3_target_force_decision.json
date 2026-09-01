@@ -1,0 +1,190 @@
+{
+  "schema": "vcc-public-v6-p3-decision-v1",
+  "created_date": "2026-09-01",
+  "context": "HepG2",
+  "metric_orientation": "Positive deltas are better for every metric.",
+  "execution": {
+    "C_generation": {
+      "job_id": 861527,
+      "state": "COMPLETED",
+      "exit_code": "0:0",
+      "elapsed": "00:04:01",
+      "resource": "one NVIDIA H100 80GB"
+    },
+    "D_generation": {
+      "job_id": 861528,
+      "state": "COMPLETED",
+      "exit_code": "0:0",
+      "elapsed": "00:04:00",
+      "resource": "one NVIDIA H100 80GB"
+    },
+    "C_scoring": {
+      "job_id": 861529,
+      "state": "COMPLETED",
+      "exit_code": "0:0",
+      "elapsed": "00:04:56"
+    },
+    "D_scoring": {
+      "job_id": 861530,
+      "state": "COMPLETED",
+      "exit_code": "0:0",
+      "elapsed": "00:05:22"
+    }
+  },
+  "arms": {
+    "A": {
+      "tag": "anchor",
+      "target_remaining_fraction": 0.2,
+      "residual_alpha": 0.0
+    },
+    "B": {
+      "tag": "v51_alpha010",
+      "target_remaining_fraction": 0.2,
+      "residual_alpha": 0.1
+    },
+    "C": {
+      "tag": "p3_tf040_state_a000",
+      "target_remaining_fraction": 0.4,
+      "residual_alpha": 0.0,
+      "prediction_sha256": "4415c90a73621096e9c694e0ecc97c51239cee36a38758cf1567e8cc865cd2ab",
+      "results_sha256": "df1f01551852166c88c0381a622e4e7f2a7ba5dbe9dae41b73e061e9c62f0f53",
+      "scoring_verification_sha256": "ffa097f7a54f31df8b1a8786b34788111f0227482e9e9a5b281c769240c09502"
+    },
+    "D": {
+      "tag": "p3_tf040_p0_a010",
+      "target_remaining_fraction": 0.4,
+      "residual_alpha": 0.1,
+      "prediction_sha256": "a15db235390481918037b328bff3a6c722c09e7272623e431b0da177cb49ab1f",
+      "results_sha256": "a940d68cc22cf21085b2c0a72510ab96e263011e5435daf2c11995fc5feea823",
+      "scoring_verification_sha256": "a4ede5a17304b10b422cf6b19616341b42ee2c4f8489411850cc3cc6cabbf6c4"
+    }
+  },
+  "authentication": {
+    "generation_contract": "strict-v2",
+    "generation_and_scoring_receipts_passed": true,
+    "factor_contract_passed": true,
+    "all_four_axes_and_source_control_pairing_identical": true,
+    "all_shared_generator_inputs_identical": true,
+    "held_target_count_identity": {
+      "passed": true,
+      "groups": 33,
+      "rows": 13200,
+      "genes": 9623,
+      "differing_rows": 0,
+      "differing_entries": 0,
+      "logical_csr_sha256": "100c3312d2a7b158c33094ad0462636770b97a283a146fed72c6a2ff50c37b97"
+    },
+    "count_identity_receipt_sha256": "5219c8e41b692d2ff192dce250c53c9f4ce7b5acb35738041c083f23d0c1d75b",
+    "factor_contract_receipt_sha256": "486aee21274a362fb9b233d8e40befa9f49c2c311d705b16f26b8ed6097e05e6",
+    "factorial_analysis_sha256": "c02e5f3cceaed71fdb2644449f24cdbc26e55f8901309ecb169abd53f02fee4e"
+  },
+  "oriented_candidate_minus_incumbent": {
+    "C_minus_B": {
+      "all": {
+        "pds_cosine": -0.050523968784838336,
+        "expr_mse_unbiased_capped_norm": -0.009684527971772994,
+        "de_wilcoxon_lfc_nmae": -0.005913342171700031,
+        "de_wilcoxon_direction_fidelity_yield_raw": -0.009557999815349355,
+        "de_wilcoxon_direction_reach_raw": -0.02521867414512126,
+        "de_wilcoxon_sig_jaccard": -0.0023803621935516925
+      },
+      "direct": {
+        "pds_cosine": -0.05680608269763132,
+        "expr_mse_unbiased_capped_norm": -0.010566045204031704,
+        "de_wilcoxon_lfc_nmae": -0.006523115664791024,
+        "de_wilcoxon_direction_fidelity_yield_raw": -0.010778045479191867,
+        "de_wilcoxon_direction_reach_raw": -0.02856314820866024,
+        "de_wilcoxon_sig_jaccard": -0.0026715611218256566
+      },
+      "held_target": {
+        "pds_cosine": 0.00030404378230458606,
+        "expr_mse_unbiased_capped_norm": -0.0008750850995906667,
+        "de_wilcoxon_lfc_nmae": 0.0000014607112838183,
+        "de_wilcoxon_direction_fidelity_yield_raw": 0.000017510091778361,
+        "de_wilcoxon_direction_reach_raw": 0.000178425774877672,
+        "de_wilcoxon_sig_jaccard": -0.000024298137516941
+      }
+    },
+    "D_minus_B": {
+      "all": {
+        "pds_cosine": -0.000022296544035627,
+        "expr_mse_unbiased_capped_norm": 0.000001512485535038,
+        "de_wilcoxon_lfc_nmae": -0.000001884191037971,
+        "de_wilcoxon_direction_fidelity_yield_raw": -0.000061920657833281,
+        "de_wilcoxon_direction_reach_raw": 0.000054463728189041,
+        "de_wilcoxon_sig_jaccard": -0.00000497963236077
+      },
+      "direct": {
+        "pds_cosine": -0.000062630741673342,
+        "expr_mse_unbiased_capped_norm": -0.000000346701705456,
+        "de_wilcoxon_lfc_nmae": -0.000002229026328626,
+        "de_wilcoxon_direction_fidelity_yield_raw": -0.000072041178054066,
+        "de_wilcoxon_direction_reach_raw": 0.000038139508049012,
+        "de_wilcoxon_sig_jaccard": -0.000002591951948204
+      },
+      "held_target": {
+        "pds_cosine": 0.00030404378230458606,
+        "expr_mse_unbiased_capped_norm": 0.000020092274091832,
+        "de_wilcoxon_lfc_nmae": 0.0000014607112838183,
+        "de_wilcoxon_direction_fidelity_yield_raw": 0.000017510091778361,
+        "de_wilcoxon_direction_reach_raw": 0.000178425774877672,
+        "de_wilcoxon_sig_jaccard": -0.000024298137516941
+      }
+    }
+  },
+  "factorial_all_target_contrasts": {
+    "B_minus_A": {
+      "pds_cosine": 0.0505685618729097,
+      "expr_mse_unbiased_capped_norm": 0.009695667308303069,
+      "de_wilcoxon_lfc_nmae": 0.00591835184253009,
+      "de_wilcoxon_direction_fidelity_yield_raw": 0.009731464164523307,
+      "de_wilcoxon_direction_reach_raw": 0.02524429679062941,
+      "de_wilcoxon_sig_jaccard": 0.002373140760140974
+    },
+    "D_minus_C": {
+      "pds_cosine": 0.05050167224080271,
+      "expr_mse_unbiased_capped_norm": 0.009686040457308032,
+      "de_wilcoxon_lfc_nmae": 0.005911457980662171,
+      "de_wilcoxon_direction_fidelity_yield_raw": 0.009496079157516074,
+      "de_wilcoxon_direction_reach_raw": 0.0252731378733103,
+      "de_wilcoxon_sig_jaccard": 0.002375382561190922
+    },
+    "interaction_D_minus_C_minus_B_minus_A": {
+      "pds_cosine": -0.000066889632106992,
+      "expr_mse_unbiased_capped_norm": -0.000009626850995037,
+      "de_wilcoxon_lfc_nmae": -0.000006893861867918,
+      "de_wilcoxon_direction_fidelity_yield_raw": -0.000235385007007233,
+      "de_wilcoxon_direction_reach_raw": 0.000028841082680892,
+      "de_wilcoxon_sig_jaccard": 0.000002241801049949
+    }
+  },
+  "paired_bootstrap_D_minus_B": {
+    "resamples": 10000,
+    "seed": 20260901,
+    "all": {
+      "pds_cosine_90pct_ci": [-0.000178372352285239, 0.000133779264214096],
+      "expr_mse_unbiased_capped_norm_90pct_ci": [-0.000006355468392372, 0.000009638486248875],
+      "de_wilcoxon_lfc_nmae_90pct_ci": [-0.000011690822902805, 0.000007623747938096],
+      "de_wilcoxon_direction_fidelity_yield_raw_90pct_ci": [-0.000267580239682998, 0.000100605307864797],
+      "de_wilcoxon_direction_reach_raw_90pct_ci": [0.000010120708980015, 0.000109732815489249],
+      "de_wilcoxon_sig_jaccard_90pct_ci": [-0.000017461965538187, 0.000008478994133297]
+    },
+    "held_target_jaccard_90pct_ci": [-0.000059897414757214, -0.000002267677215242]
+  },
+  "decision": {
+    "C_passes_against_B": false,
+    "D_passes_against_B": false,
+    "D_passes_against_C": true,
+    "selected_arm": "B",
+    "selected_label": "v51_alpha010",
+    "promote_to_jurkat": false,
+    "official_submission_created": false,
+    "official_submission_quota_consumed": false,
+    "reason": "Neither C nor D passes the pre-registered primary deployment gate against the V5.1 incumbent."
+  },
+  "interpretation": [
+    "The power-zero residual remains the dominant positive factor at both target-force levels.",
+    "Changing the forced model-space target remaining fraction from 0.20 to 0.40 is nearly neutral when the residual is present and does not improve discrimination.",
+    "The P3 result does not justify another Jurkat run or an official VCC submission."
+  ]
+}

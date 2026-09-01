@@ -260,3 +260,28 @@ The analyzer also recomputes the existing primary deployment gate for `C` vs
 selection rule above. Bootstrap intervals are evidence summaries only and
 cannot override a failed point-estimate gate. Selection of C or D remains
 provisional until the selected configuration passes the Jurkat non-harm gate.
+
+## Executed result
+
+P3 was executed on 2026-09-01 after the AIDA controller became reachable.
+Generation jobs `861527` and `861528` used one NVIDIA H100 80GB sequentially;
+scoring jobs `861529` and `861530` used the pinned CPU scorer. Every job
+completed with exit code `0:0`, and all strict generation and scoring receipts
+passed. The independent held-target audit reported zero differing rows and
+entries across 33 groups, 13,200 cells, and 9,623 model genes. The four-arm
+factor contract also passed every input, axis, annotation, pairing, and count
+identity gate.
+
+Neither new arm passed against B. C regressed all six all-target and direct
+metrics because it removed the validated residual. D restored almost all of
+that loss, but its all-target oriented changes against B were PDS
+`-0.00002230`, MSE `+0.00000151`, NMAE `-0.00000188`, fidelity `-0.00006192`,
+reach `+0.00005446`, and Jaccard `-0.00000498`. Its direct-target MSE was also
+slightly adverse (`-0.00000035`), and held-target Jaccard regressed by
+`-0.00002430`. D passed against C, so the residual effect replicated at target
+fraction `0.40`; this does not permit D to bypass the incumbent comparison.
+
+The deterministic selection retained B (`v51_alpha010`). No P3 Jurkat run was
+required, no official VCC candidate was packaged or submitted, and no
+submission quota was consumed. The complete sanitized decision is
+[`results/public_v6/p3_target_force_decision.json`](../results/public_v6/p3_target_force_decision.json).

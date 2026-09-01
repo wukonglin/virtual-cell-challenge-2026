@@ -636,17 +636,37 @@ The sanitized P2 record is
 and the executable contract is documented in
 [`PUBLIC_V6_ALPHA_CALIBRATION.md`](PUBLIC_V6_ALPHA_CALIBRATION.md).
 
-The next pre-registered P3 step changes target force while returning to the
-validated power-zero residual. It requires exactly two new HepG2 arms at a
+The pre-registered P3 step changed target force while returning to the
+validated power-zero residual. It used exactly two new HepG2 arms at a
 model-space target remaining fraction of `0.40`: STATE-only alpha `0.00` and
-residual alpha `0.10`. The existing V5.1 anchor and incumbent are the matched
-`0.20` arms. As of 2026-09-01, no P3 generation or scoring job has run; do not
-describe P3 as evaluated. Commands, causal contrasts, held-target invariants,
-and the deterministic promotion rule are pre-registered in
+residual alpha `0.10`. The existing V5.1 anchor and incumbent were the matched
+`0.20` arms. Commands, causal contrasts, held-target invariants, and the
+deterministic promotion rule were pre-registered in
 [`PUBLIC_V6_P3_FACTORIAL_DECISION.md`](PUBLIC_V6_P3_FACTORIAL_DECISION.md).
 Selection also requires the
 [`four-arm provenance contract`](PUBLIC_V6_P3_FACTOR_CONTRACT.md) and the
 [`held-target count-identity gate`](PUBLIC_V6_P3_COUNT_IDENTITY.md).
+
+Generation jobs `861527` and `861528` ran sequentially on one NVIDIA H100
+80GB and completed in 4 minutes 1 second and 4 minutes 0 seconds. Scoring jobs
+`861529` and `861530` completed in 4 minutes 56 seconds and 5 minutes 22
+seconds. All four jobs exited `0:0`. Both strict-v2 generation receipts and
+both pinned cell-eval2 scoring receipts passed. The 33 held-target groups were
+exactly count-identical across the alpha contrast: zero differing rows and
+entries across 13,200 cells and 9,623 model genes.
+
+The immutable four-arm factor receipt passed, including shared input hashes,
+axes, annotations, and sampled source-control pairing. The factorial analyzer
+used 10,000 common paired-target bootstrap draws per cohort and metric. Arm C
+failed against B on all six all-target and direct-target oriented metrics.
+Arm D was nearly neutral against B: all-target deltas were PDS `-0.00002230`,
+MSE `+0.00000151`, NMAE `-0.00000188`, fidelity `-0.00006192`, reach
+`+0.00005446`, and Jaccard `-0.00000498`. It failed the all, direct, and
+held-target point gates. D did pass against C, confirming that the residual
+remained beneficial, but neither new arm passed the incumbent. The
+deterministic selection therefore retained B. No Jurkat P3 run or official
+submission was made, and no VCC quota was consumed. The sanitized result is
+[`results/public_v6/p3_target_force_decision.json`](../results/public_v6/p3_target_force_decision.json).
 
 Build the raw HepG2 and Jurkat response atlases as independent research jobs:
 
