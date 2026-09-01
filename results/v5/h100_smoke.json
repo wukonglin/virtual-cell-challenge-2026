@@ -1,0 +1,65 @@
+{
+  "schema": "vcc-v5-h100-smoke-result-v1",
+  "created_date": "2026-09-01",
+  "slurm": {
+    "job_id": 861094,
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "elapsed_seconds": 19,
+    "max_rss_kib": 3295916,
+    "resources": {
+      "gpu": "1x NVIDIA H100 80GB HBM3",
+      "cpus": 8,
+      "host_memory_gib": 64
+    }
+  },
+  "configuration": {
+    "state_effect_weight": 0.01,
+    "state_effect_clip": 0.15,
+    "common_response_weight": 0.1,
+    "learned_response_weight": 0.22,
+    "combined_effect_clip": 0.35,
+    "pseudobulk_blend_weight": 0.0,
+    "zero_induction_scale": 0.0,
+    "cells_per_group": 32,
+    "targets": 8,
+    "contexts": 3
+  },
+  "output": {
+    "shape": [768, 18533],
+    "groups": 24,
+    "nnz": 4181409,
+    "bytes": 34347908,
+    "sha256": "ed27ff40db83c55807dcf2908db7fb3289fdec67ad81799b423764eb4f1de2bc"
+  },
+  "scientific_qc": {
+    "induced_zero_expected_entries": 0,
+    "induced_zero_emitted_entries": 0,
+    "combined_effect_clip_fraction": 0.0,
+    "overall_dropped_count_fraction": 0.017882676649222506,
+    "overall_absolute_library_drift_fraction": 0.01800941970851802,
+    "by_context": {
+      "A": {
+        "dropped_count_fraction": 0.02395997903299805,
+        "absolute_library_drift_fraction": 0.0242248574425143
+      },
+      "B": {
+        "dropped_count_fraction": 0.009234767989991718,
+        "absolute_library_drift_fraction": 0.009103967396321602
+      },
+      "C": {
+        "dropped_count_fraction": 0.02009558077826093,
+        "absolute_library_drift_fraction": 0.0203286084227798
+      }
+    },
+    "maximum_group_dropped_count_fraction": 0.02899182200626276,
+    "maximum_group_absolute_library_drift_fraction": 0.029529753693630874,
+    "all_gates_passed": true
+  },
+  "promotion": {
+    "technical_smoke_passed": true,
+    "full_generation_authorized_by_offline_gates": true,
+    "leaderboard_improvement_established": false,
+    "submission_authorized": false
+  }
+}

@@ -537,6 +537,13 @@ requires an H100 at runtime, zero induced source-zero entries, fewer than 0.1%
 combined-effect clip events, exact mass accounting, and the tightened loss and
 library gates. It is not an accuracy benchmark and is never submitted.
 
+Job `861094` completed this smoke on one NVIDIA H100 80GB in 19 seconds with
+exit code `0:0`. The result contained 768 cells, 24 groups, and 4,181,409
+nonzero entries. No source-zero entries were induced and no combined effects
+were clipped. Overall dropped mass and absolute library drift were 1.788% and
+1.801%; A/B/C dropped mass was 2.396%/0.923%/2.010%. Every smoke gate passed.
+The sanitized receipt is `results/v5/h100_smoke.json`.
+
 Only after those gates pass, generate the complete candidate:
 
 ```bash
