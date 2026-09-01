@@ -2,14 +2,12 @@
 #SBATCH --job-name=vcc-cross-context
 #SBATCH --account=allaccess
 #SBATCH --partition=full
-#SBATCH --qos=high
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gres=gpu:h100:1
-#SBATCH --constraint=gpu-h100
+#SBATCH --gpus=h100:1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=192G
-#SBATCH --time=08:00:00
+#SBATCH --mem=128G
+#SBATCH --time=02:00:00
 #SBATCH --output=logs/h100_cross_context_%j.out
 #SBATCH --error=logs/h100_cross_context_%j.err
 
