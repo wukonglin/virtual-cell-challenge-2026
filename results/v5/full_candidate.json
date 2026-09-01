@@ -1,0 +1,82 @@
+{
+  "schema": "vcc-v5-full-candidate-result-v1",
+  "created_date": "2026-09-01",
+  "repository_commit": "83b3b787e2d4bb2d78c3f6a558102d3bd0f43b96",
+  "generation": {
+    "slurm_job_id": 861096,
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "elapsed_seconds": 1111,
+    "max_rss_kib": 33875884,
+    "device": "NVIDIA H100 80GB HBM3",
+    "shape": [360000, 18533],
+    "groups": 900,
+    "nnz": 1943174479,
+    "h5ad": {
+      "bytes": 15574412552,
+      "sha256": "831ab2587231a2b40f2bc604bd2ae63f252f52b1c7e2eee99071063ec316ea8e"
+    }
+  },
+  "configuration": {
+    "state_effect_weight": 0.01,
+    "state_effect_clip": 0.15,
+    "common_response_weight": 0.1,
+    "learned_response_weight": 0.22,
+    "combined_effect_clip": 0.35,
+    "pseudobulk_blend_weight": 0.0,
+    "zero_induction_scale": 0.0,
+    "target_policy": "off",
+    "count_emission": "stochastic-round",
+    "max_genes_per_cell": 5900
+  },
+  "scientific_qc": {
+    "induced_zero_expected_entries": 0,
+    "induced_zero_emitted_entries": 0,
+    "combined_effect_clip_events": 12,
+    "combined_effect_values": 6671880000,
+    "combined_effect_clip_fraction": 1.7985934998830914e-09,
+    "overall": {
+      "dropped_count_fraction": 0.018638701597167066,
+      "absolute_library_drift_fraction": 0.018855847125302052
+    },
+    "by_context": {
+      "A": {
+        "dropped_count_fraction": 0.02442720733001726,
+        "absolute_library_drift_fraction": 0.02458818508311809
+      },
+      "B": {
+        "dropped_count_fraction": 0.01004261089016963,
+        "absolute_library_drift_fraction": 0.01043167592198413
+      },
+      "C": {
+        "dropped_count_fraction": 0.02098563365825777,
+        "absolute_library_drift_fraction": 0.02109825518236355
+      }
+    },
+    "maximum_group_dropped_count_fraction": 0.0265789385317422,
+    "maximum_group_absolute_library_drift_fraction": 0.026986542094496274,
+    "all_generation_gates_passed": true
+  },
+  "packaging": {
+    "slurm_job_id": 861111,
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "elapsed_seconds": 305,
+    "max_rss_kib": 70885500,
+    "official_dry_run_passed": true,
+    "official_package_passed": true,
+    "independent_container_validation_passed": true,
+    "container_members": ["pred.h5ad.zst"],
+    "vcc": {
+      "bytes": 3122759680,
+      "sha256": "c1717f35d4a99ef1535e09f118a1bb86bfc8232b796f7a67d69dfc6a13d6671e"
+    },
+    "checksum_manifest_verified": true
+  },
+  "promotion": {
+    "full_generation_passed": true,
+    "official_packaging_passed": true,
+    "leaderboard_improvement_established": false,
+    "submitted": false
+  }
+}

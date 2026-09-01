@@ -560,6 +560,26 @@ sbatch \
 Packaging and official submission remain separate decisions. A successful
 technical smoke does not establish that v5 beats the published STATE entry.
 
+Full generation job `861096` subsequently completed on one NVIDIA H100 80GB in
+18 minutes 31 seconds with exit code `0:0`. The exact official-size output has
+shape `360,000 x 18,533`, 900 groups, and `1,943,174,479` nonzero entries. It
+contains no induced source-zero entries, and only 12 of 6.672 billion
+combined-effect values reached the final clip. Overall dropped count
+mass was `0.0186387016` and absolute library drift was `0.0188558471`; the
+respective context values were A `0.0244272073/0.0245881851`, B
+`0.0100426109/0.0104316759`, and C `0.0209856337/0.0210982552`. The H5AD is
+15,574,412,552 bytes with SHA256
+`831ab2587231a2b40f2bc604bd2ae63f252f52b1c7e2eee99071063ec316ea8e`.
+
+CPU packaging job `861111` completed in 5 minutes 5 seconds with exit code
+`0:0`. The official dry-run, real package, independent container validation,
+and all nine checksum-manifest entries passed. The sole container member is
+`pred.h5ad.zst`. The VCC package is 3,122,759,680 bytes with SHA256
+`c1717f35d4a99ef1535e09f118a1bb86bfc8232b796f7a67d69dfc6a13d6671e`.
+The sanitized full receipt is `results/v5/full_candidate.json`. This candidate
+has not been submitted; format integrity and improved count calibration do not
+by themselves establish leaderboard superiority.
+
 Build the raw HepG2 and Jurkat response atlases as independent research jobs:
 
 ```bash
