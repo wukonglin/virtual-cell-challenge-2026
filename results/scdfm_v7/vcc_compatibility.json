@@ -1,0 +1,55 @@
+{
+  "schema": "vcc-scdfm-compatibility-sanitized-v2",
+  "status": "passed",
+  "audit_receipt_schema": "vcc-scdfm-compatibility-audit-v2",
+  "audit_receipt_sha256": "f238402b99b35cc7fda447625e2089565589610dc4db42f5f36ff016c37ad506",
+  "receipt_contract": {
+    "adapter_config_sha256_required": true,
+    "legacy_unbound_adapter_receipts_accepted": false
+  },
+  "anchor": {
+    "selected_arm": "g100",
+    "state_effect_weight": 1.0,
+    "selection_receipt_sha256": "cd6618f38f0b93c8e7b3c63a8a2c1a31b87360ead5cc91b3f7e43898c100d312"
+  },
+  "native_coverage": {
+    "challenge_targets_covered": 62,
+    "challenge_targets_total": 300,
+    "challenge_genes_covered": 4882,
+    "challenge_genes_total": 18533
+  },
+  "upstream_interface": {
+    "genetic_training_context": "K562",
+    "genetic_training_modality": "CRISPRa",
+    "native_output_space": "continuous_log_normalized_gene_subset",
+    "published_evaluation_gene_subset": 1000,
+    "paper_demonstrates_crispri_transfer": false,
+    "paper_demonstrates_cross_cell_line_zero_shot": false
+  },
+  "direct_checkpoint_eligibility": {
+    "eligible": false,
+    "decision": "not_eligible_requires_vcc_adapter_and_retraining",
+    "all_vcc_targets_have_distinct_native_tokens": false,
+    "full_vcc_gene_axis_is_native": false,
+    "native_output_has_exactly_400_cells_per_group": false,
+    "native_output_is_raw_integer_counts": false,
+    "published_genetic_modality_matches_crispri": false,
+    "published_validation_holds_out_complete_cell_lines": false
+  },
+  "data_firewall": {
+    "reads_challenge_treated_expression": false,
+    "reads_challenge_control_expression": false,
+    "reads_prediction_expression": false,
+    "reads_public_treated_expression": false,
+    "reads_only_axes_vocab_source_selection_and_config": true
+  },
+  "registered_adapter_boundary": {
+    "config_schema": "vcc-public-v7-scdfm-experiment-v1",
+    "config_sha256": "257b28a8b5423154c772cf61493d7fd98bb73d887e35e11b2b1c52f9e7e99bab",
+    "config_sha256_bound": true,
+    "absolute_scdfm_output_allowed": false,
+    "full_axis_unmodeled_genes_retain_anchor": true,
+    "unknown_target_fallback_allowed": false,
+    "role": "reliability_gated_residual_distribution"
+  }
+}

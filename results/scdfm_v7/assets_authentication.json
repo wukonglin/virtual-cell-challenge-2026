@@ -1,0 +1,52 @@
+{
+  "schema": "vcc-scdfm-assets-authentication-sanitized-v2",
+  "status": "passed",
+  "authentication_receipt_schema": "vcc-scdfm-assets-authentication-v2",
+  "authentication_receipt_sha256": "4f8272c47ff04e75a2ba539f4e387c72a5fa50d86502c23e75d2493d22caa88c",
+  "contract": {
+    "required_extracted_member_binding": "decompressed_sha256+uncompressed_size+zip_crc32",
+    "legacy_size_only_receipts_accepted": false
+  },
+  "checks": {
+    "archive_byte_lengths_match": true,
+    "registered_archive_sha256_digests_match": true,
+    "zip_member_crcs_valid": true,
+    "zip_member_paths_safe": true,
+    "zip_members_unencrypted": true,
+    "zip_members_not_symlinks": true,
+    "required_extracted_files_match_decompressed_member_bytes": true,
+    "local_directory_paths_omitted_from_receipt": true
+  },
+  "archives": {
+    "checkpoints": {
+      "size_bytes": 5931951086,
+      "sha256": "373e69c80b88e1735cd65afe3039385cdc91fe0ef33e64b324228e029df4e937"
+    },
+    "norman": {
+      "size_bytes": 614006395,
+      "sha256": "794564cef2c0ee8f8d7fbe2ee69e87cd4eba3f14a995bd28639b6d330d76cf24"
+    },
+    "combosciplex": {
+      "size_bytes": 702210085,
+      "sha256": "60095672660ca3d983fe85cafb26541df3139790d7f87e1deb0e62283f0235f4"
+    }
+  },
+  "required_extracted_files": {
+    "norman/norman.h5ad": {
+      "size_bytes": 2184186178,
+      "sha256": "20a67e0e9e1059b631f3d3fe56a78b5856c1609339ded37cf20f2d49af1b87d7",
+      "zip_crc32": "f37da4ac"
+    },
+    "norman/split_results.pkl": {
+      "size_bytes": 8887,
+      "sha256": "0e465a93f9fe5b6cb4d3a92df6a1210a56527904d1693db95b62480be6e758cd",
+      "zip_crc32": "3e239e92"
+    },
+    "combosciplex/combosciplex.h5ad": {
+      "size_bytes": 775136305,
+      "sha256": "56943cf1c66c0e7d6f67dcc2d9d4cb6b6f13ac01417ad8be1e58be2d1215234d",
+      "zip_crc32": "c78fc4e2"
+    }
+  },
+  "interpretation": "These project-computed digests bind the exact local assets used for reproduction. They are not checksums published by the scDFM authors and do not establish redistribution rights."
+}

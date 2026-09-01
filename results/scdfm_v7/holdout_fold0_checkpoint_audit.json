@@ -1,0 +1,30 @@
+{
+  "schema": "vcc-scdfm-checkpoint-audit-sanitized-v1",
+  "status": "passed",
+  "checkpoint": {
+    "archive_member": "ckpts/holdout/fold0/checkpoint.pt",
+    "size_bytes": 697879461,
+    "sha256": "5730a05918e2e727f8a558f21db23ae793a8deb74af5c28b905d852af92354d7",
+        "loaded_with_weights_only": true,
+        "audit_receipt_sha256": "2bd7140584ddfbdd78c47620673cacdb7fc55a16ab565831b003d9720babe89c",
+        "iteration": 70000,
+    "eval_score": null
+  },
+  "model_state_dict": {
+    "tensor_count": 219,
+    "parameter_count": 60359169,
+    "all_values_finite": true,
+    "perturbation_embedding_shape": [6000, 512]
+  },
+  "complete_checkpoint": {
+    "tensor_count": 852,
+    "element_count": 174403286,
+    "all_values_finite": true
+  },
+  "embedded_metadata": {
+    "config": false,
+    "vocabulary": false,
+    "gene_graph": false
+  },
+  "interpretation": "The released checkpoint bytes are readable and finite, but reconstruction still requires separately authenticated configuration, vocabulary, graph mask, and preprocessing inputs."
+}

@@ -120,6 +120,45 @@ The upstream publication, MIT notice, compilation, and modification notice
 must be cited together. The compilation's CC BY 4.0 label does not replace the
 terms of the underlying dataset.
 
+### scDFM reference assets
+
+Sources:
+
+- Official source: <https://github.com/AI4Science-WestlakeU/scDFM>
+- Paper: <https://arxiv.org/abs/2602.07103>
+- Pinned source commit: `2cf6bca1f044e74c4e1dc586892c0495880cf125`
+
+The official repository links three Google Drive archives. The authors do not
+publish cryptographic checksums, so the values below are project-computed
+digests of the first reviewed exact-size downloads and are now enforced as
+immutable project inputs. Every ZIP member also passed CRC, path, encryption,
+duplicate-name, and symbolic-link checks. Each required extracted file is
+stream-hashed against the decompressed bytes of its exact ZIP member; matching
+size alone is not accepted.
+
+| Local file | Bytes | Local SHA-256 | Role |
+|---|---:|---|---|
+| `dataset/scdfm/downloads/checkpoints.zip` | 5,931,951,086 | `373e69c80b88e1735cd65afe3039385cdc91fe0ef33e64b324228e029df4e937` | Nine released checkpoints for upstream reproduction only |
+| `dataset/scdfm/downloads/norman.zip` | 614,006,395 | `794564cef2c0ee8f8d7fbe2ee69e87cd4eba3f14a995bd28639b6d330d76cf24` | Immutable Norman archive |
+| `dataset/scdfm/downloads/combosciplex.zip` | 702,210,085 | `60095672660ca3d983fe85cafb26541df3139790d7f87e1deb0e62283f0235f4` | Immutable ComboSciPlex archive |
+| `dataset/scdfm/extracted/norman/norman.h5ad` | 2,184,186,178 | `20a67e0e9e1059b631f3d3fe56a78b5856c1609339ded37cf20f2d49af1b87d7` | K562 CRISPR activation reproduction only |
+| `dataset/scdfm/extracted/norman/split_results.pkl` | 8,887 | `0e465a93f9fe5b6cb4d3a92df6a1210a56527904d1693db95b62480be6e758cd` | Released Norman split metadata; requires trusted-origin review before pickle loading |
+| `dataset/scdfm/extracted/combosciplex/combosciplex.h5ad` | 775,136,305 | `56943cf1c66c0e7d6f67dcc2d9d4cb6b6f13ac01417ad8be1e58be2d1215234d` | A549 drug-perturbation reproduction only |
+
+The sanitized authentication result is tracked at
+`results/scdfm_v7/assets_authentication.json`; the full path-bearing receipt
+remains Git-ignored at
+`dataset/scdfm/receipts/assets_member_bound_v2.json`. This v2 receipt binds
+each required extracted member by decompressed SHA-256, uncompressed byte
+length, and ZIP CRC32; legacy size-only bindings are rejected.
+
+The source code is MIT-licensed and the paper is CC BY 4.0, but the downloaded
+weights and datasets have no separate model card or explicit archive-level
+license in the release. They remain Git-ignored and redistribution is disabled
+pending a separate terms review. Norman is CRISPR activation in K562 and
+ComboSciPlex is drug perturbation in A549; neither is direct CRISPRi
+cross-cell-line supervision for a VCC candidate.
+
 ## Model-code license boundary
 
 The PRiMeFlow source checkout is stored only under the Git-ignored `external/`

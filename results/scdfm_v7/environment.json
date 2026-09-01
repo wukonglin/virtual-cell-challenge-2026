@@ -1,0 +1,37 @@
+{
+  "schema": "vcc-scdfm-environment-sanitized-v1",
+  "status": "passed",
+  "python": "3.11.13",
+  "packages": {
+    "anndata": "0.12.1",
+    "jax": "0.6.2",
+    "scanpy": "1.11.4",
+    "pertpy": "1.0.1",
+    "POT": "0.9.5",
+    "rdkit": "2025.03.5",
+    "requests": "2.32.4",
+    "scvi-tools": "1.3.3",
+    "timm": "1.0.19",
+    "torch": "2.7.1+cu126",
+    "torchvision": "0.22.1+cu126"
+  },
+  "cuda_runtime_bundled_with_torch": "12.6",
+  "pip_check": "No broken requirements found.",
+  "runtime_import_preflight": {
+    "status": "passed",
+    "command": "dataset/scdfm/envs/scdfm/bin/python scripts/preflight_scdfm_environment.py --source dataset/external_repos/scDFM",
+    "stdout_receipt_sha256": "357347d0bcaf71fe4a13df4d3713549473da854026921d0cfdb4d1fc227d4150",
+    "source_commit": "2cf6bca1f044e74c4e1dc586892c0495880cf125",
+    "source_tree": "a04130b07020505a609158cbe31e9e65083c0d79",
+    "required_top_level_imports": 23,
+    "source_authenticated_first": true,
+    "all_static_external_imports_classified": true,
+    "optional_origin_backends_required": false
+  },
+  "isolated_from_state_environment": true,
+  "local_environment_size": "5.4G",
+  "tracked_direct_requirements": {
+    "path": "requirements/scdfm.txt",
+    "sha256": "5f5d1984bd25036827f2abe56a13ecf22fb1f8051c1bd70319b8af69c2fb0112"
+  }
+}

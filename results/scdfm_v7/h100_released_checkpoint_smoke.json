@@ -1,0 +1,62 @@
+{
+  "schema": "vcc-scdfm-released-checkpoint-smoke-sanitized-v2",
+  "status": "superseded",
+  "historical_status": "passed",
+  "historical_receipt_schema": "vcc-scdfm-released-checkpoint-smoke-v1",
+  "required_current_receipt_schema": "vcc-scdfm-released-checkpoint-smoke-v2",
+  "supersession": {
+    "reason": "The historical run verified a mutable worktree module path rather than executing from immutable pinned Git-object bytes.",
+    "executed_from_verified_git_object_snapshot": false,
+    "hardened_h100_rerun_required": true,
+    "submission_ready": false
+  },
+  "scope": {
+    "synthetic_expression_only": true,
+    "dummy_all_false_graph": true,
+    "model_performance_evaluation": false,
+    "official_submission_artifact": false
+  },
+  "job": {
+    "slurm_job_id": "861784",
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "elapsed": "00:00:07",
+    "gpu": "NVIDIA H100 80GB HBM3",
+    "compute_capability": "9.0",
+    "receipt_sha256": "6e26abf8fc75cab45dd3688c3fe9fff7faefeaaeca201fca23dcd72853a986d8"
+  },
+  "authenticated_inputs": {
+    "source_commit": "2cf6bca1f044e74c4e1dc586892c0495880cf125",
+    "source_tree": "a04130b07020505a609158cbe31e9e65083c0d79",
+    "checkpoint_sha256": "5730a05918e2e727f8a558f21db23ae793a8deb74af5c28b905d852af92354d7",
+    "checkpoint_iteration": 70000,
+    "norman_vocab_sha256": "d6d540e3a9f0dae50e4a372a3e17bdc7d95e8b84f795290e13c8f3fa868e15f4",
+    "norman_vocab_tokens": 5033
+  },
+  "strict_model_load": {
+    "model_state_tensors": 219,
+    "model_state_elements": 60359169,
+    "perturbation_embedding_shape": [6000, 512],
+    "missing_keys": [],
+    "unexpected_keys": [],
+    "checkpoint_rehashed_on_loaded_descriptor": true,
+    "loaded_checkpoint_sha256_matches_audit": true,
+    "upstream_module_path_verified_inside_authenticated_source": true,
+    "upstream_module_bytes_bound_to_pinned_git_blobs": false,
+    "optimizer_state_restored": false,
+    "scheduler_state_restored": false,
+    "split_pickle_read": false
+  },
+  "synthetic_forward": {
+    "batch_size": 2,
+    "gene_count": 8,
+    "output_shape": [2, 8],
+    "output_dtype": "float32",
+    "output_min": -2.488642930984497,
+    "output_max": 2.093626022338867,
+    "output_sha256_float32_cpu_bytes": "7c298bf19ac00098644a12fed2095a561489fa2c7609687f0d70444f81de20df",
+    "repeated_eval_forward_bitwise_identical": true,
+    "all_values_finite": true
+  },
+  "interpretation": "This historical run demonstrated strict weight compatibility on one H100 but did not bind executed source bytes to immutable Git blobs. It is superseded and cannot satisfy the current hardened source-provenance gate; it also does not demonstrate CRISPRi, unseen-context, full-gene-axis, raw-count, or leaderboard performance."
+}

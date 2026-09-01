@@ -221,6 +221,36 @@ passed the deployment gate against V5.1: the alpha-`0.10` arm at fraction
 submission was made. See the
 [P3 decision](results/public_v6/p3_target_force_decision.json).
 
+## Experimental V7 scDFM lane
+
+The `experiment/v7-scdfm-gamma1` branch investigates scDFM as a
+distributional residual expert while preserving the authenticated P4 STATE
+anchor at `state_effect_weight = 1.0`. The upstream source is pinned to commit
+`2cf6bca1f044e74c4e1dc586892c0495880cf125`, authenticated without modifying
+the third-party checkout, and separated from local datasets and weight
+archives.
+
+The released Norman checkpoint is not treated as a submission-ready VCC
+model. Its vocabulary covers only 62 of the 300 challenge targets and 4,882 of
+the 18,533 output genes; it was trained on K562 CRISPR activation rather than
+CRISPR interference and does not establish unseen-cell-line generalization.
+V7 therefore registers continuous ESM2 target conditioning, whole-cell-line
+holdouts, a sealed HepG2 evaluation context, and centered residual weights
+`{0.00, 0.05, 0.10, 0.20}`. The zero-weight arm must byte-reproduce the fixed
+STATE factor and, after authenticated rendering, its raw-count candidate. No
+V7 artifact may be submitted until every registered scientific-promotion,
+provenance, count-rendering, raw-count-format, and official validation gate
+passes. Gate 1b remains incomplete, the exact ESM2 provenance is unresolved,
+and the required sealed Jurkat non-harm manifest has not yet been created, so
+the lane is not training-ready or submission-ready. All three official
+archives and one released Norman checkpoint have passed local integrity
+audits. Synthetic objective wiring passed its single-H100 contract smoke. A
+historical single-H100 run also strict-loaded the 60.4-million-parameter
+released model, but it predates the immutable Git-object execution boundary
+and is superseded for source-provenance purposes; the hardened smoke requires
+a fresh H100 run. These are compatibility checks, not model-quality evidence.
+See the [V7 design and stop rules](docs/PUBLIC_V7_SCDFM.md).
+
 The downloaded Feng multi-iPSC atlas adds 850,726 normalized-log1p cells,
 6,699 perturbations, and 182 direct validation-target overlaps for future
 representation training. It has no raw-count layer and is therefore excluded

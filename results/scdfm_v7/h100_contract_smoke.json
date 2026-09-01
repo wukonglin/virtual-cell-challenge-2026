@@ -1,0 +1,48 @@
+{
+  "schema": "vcc-scdfm-contract-smoke-sanitized-v1",
+  "status": "passed",
+  "scope": {
+    "synthetic_data_only": true,
+    "model_performance_evaluation": false,
+    "official_submission_artifact": false
+  },
+  "successful_job": {
+        "slurm_job_id": "861790",
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+        "elapsed": "00:00:04",
+    "gpu": "NVIDIA H100 80GB HBM3",
+    "compute_capability": "9.0",
+    "peak_memory_allocated_bytes": 67563520,
+        "receipt_sha256": "6a5e3e9c048a0627f85536542598d8fa2945dce517f777a8efc8cb8b0ea2240d"
+  },
+  "configuration": {
+        "sha256": "24911ddb4e916cd1cb8dc7ec7ee3dc14282e074feab625be8668651744213613",
+    "seed": 20260901,
+    "state_effect_weight": 1.0,
+    "mmd_weight": 0.5,
+    "mmd_kernel_scales": [0.5, 1.0, 2.0, 4.0]
+  },
+  "losses": {
+    "cfm_velocity_mse": 1.1446213722229004,
+    "multi_kernel_rbf_mmd2": 0.28549373149871826,
+    "weighted_scdfm_mmd": 0.14274686574935913,
+    "total": 1.2873682975769043,
+    "gradient_l2_norm": 0.5972446626726339
+  },
+  "checks": {
+        "all_17_contract_checks_passed": true,
+    "finite_losses_gradients_and_parameters": true,
+    "h100_detected": true,
+        "synthetic_state_effect_scale_bound_to_one": true,
+        "absolute_scdfm_output_forbidden": true,
+        "context_target_residual_centering_required": true,
+    "mmd_weight_separately_bound": true
+  },
+  "environment_correction": {
+    "diagnostic_job_id": "861750",
+    "diagnostic_state": "FAILED",
+    "cause": "The CUDA 12.6 module prepended system cuDNN 9.5 ahead of the PyTorch-bundled cuDNN 9.20.",
+    "resolution": "Do not load a CUDA module; use the Slurm NVIDIA driver with the PyTorch-bundled CUDA and cuDNN runtime."
+  }
+}

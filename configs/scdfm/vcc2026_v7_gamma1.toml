@@ -1,0 +1,144 @@
+[experiment]
+schema = "vcc-public-v7-scdfm-experiment-v1"
+name = "v7_scdfm_residual_gamma1"
+seed = 20260901
+status = "preregistered"
+official_submission_allowed = false
+
+[anchor]
+model = "state_v51_public_residual"
+selected_arm = "g100"
+state_effect_weight = 1.0
+selection_receipt = "artifacts/public_v6/decisions/hepg2_p4_state_gamma.json"
+selection_receipt_sha256 = "cd6618f38f0b93c8e7b3c63a8a2c1a31b87360ead5cc91b3f7e43898c100d312"
+immutable_during_scdfm_search = true
+
+[upstream]
+repository = "https://github.com/AI4Science-WestlakeU/scDFM.git"
+checkout = "dataset/external_repos/scDFM"
+commit = "2cf6bca1f044e74c4e1dc586892c0495880cf125"
+tree = "a04130b07020505a609158cbe31e9e65083c0d79"
+license_spdx = "MIT"
+license_sha256 = "dedf7a6ce9cb9f1062d6f387a6a164320a442d61591627f81ce6aedc7c8e2fdb"
+
+[challenge]
+targets = "dataset/controls/pert_counts.csv"
+gene_axis = "dataset/controls/gene_names.csv"
+control_manifest = "dataset/controls/manifest.json"
+target_count = 300
+gene_count = 18533
+cells_per_context_target = 400
+measured_challenge_perturbation_data_allowed = false
+
+[model]
+role = "reliability_gated_residual_distribution"
+absolute_scdfm_output_allowed = false
+target_conditioning = "esm2_5120_projected"
+context_conditioning = "released_control_summary"
+expression_space = "library_normalized_log1p"
+gene_subset_size = 1000
+hidden_size = 256
+layers = 4
+attention_heads = 8
+dropout = 0.1
+coexpression_knn = 30
+flow_path = "linear_conditional_flow_matching"
+ode_solver = "euler"
+ode_steps = 20
+mmd_weight = 0.5
+mmd_kernel_scales = [0.5, 1.0, 2.0, 4.0]
+center_residual_by_context_target = true
+centroid_atol = 1e-10
+
+[target_conditioning_provenance]
+status = "UNRESOLVED_REQUIRED"
+model_id = "UNRESOLVED_REQUIRED"
+model_revision = "UNRESOLVED_REQUIRED"
+weights_sha256 = "UNRESOLVED_REQUIRED"
+protein_sequence_source = "UNRESOLVED_REQUIRED"
+gene_to_protein_mapping = "UNRESOLVED_REQUIRED"
+gene_to_protein_mapping_sha256 = "UNRESOLVED_REQUIRED"
+pooling_rule = "UNRESOLVED_REQUIRED"
+embedding_dimension = 5120
+embedding_receipt = "UNRESOLVED_REQUIRED"
+embedding_receipt_sha256 = "UNRESOLVED_REQUIRED"
+provenance_complete = false
+gate_1b_allowed = false
+
+[search]
+scdfm_residual_weights = [0.0, 0.05, 0.10, 0.20]
+target_holdout = "whole_esm2_cluster"
+context_holdout = "whole_cell_line"
+fit_preprocessing_inside_each_fold = true
+primary_validation_context = "hepg2"
+secondary_non_harm_context = "jurkat"
+secondary_non_harm_manifest = "artifacts/scdfm/v7/splits/jurkat_non_harm.json"
+secondary_non_harm_excluded_from_fit = true
+secondary_non_harm_manifest_required_before_training = true
+minimum_random_seeds = 3
+
+[promotion]
+require_all_six_metrics = true
+require_primary_context_gate = true
+require_secondary_context_non_harm = true
+require_pds_non_regression = true
+require_mse_non_regression = true
+require_nmae_non_regression = true
+require_centroid_identity_for_distribution_only_arm = true
+allow_leaderboard_tuning = false
+
+[[datasets]]
+name = "arc_state_support"
+path = "dataset/state_support/extracted"
+representation = "raw_or_dataset_declared"
+role = "multi_context_transition_training"
+allowed_for_count_emitter = true
+
+[[datasets]]
+name = "replogle_k562_gwps"
+path = "dataset/raw/replogle_2022/K562_gwps_raw_bulk_01.h5ad"
+representation = "pseudobulk_raw_umi_expectation"
+role = "target_mean_and_reliability_supervision"
+allowed_for_count_emitter = false
+
+[[datasets]]
+name = "replogle_rpe1"
+path = "dataset/raw/replogle_2022/rpe1_raw_bulk_01.h5ad"
+representation = "pseudobulk_raw_umi_expectation"
+role = "cross_context_residual_calibration"
+allowed_for_count_emitter = false
+
+[[datasets]]
+name = "nadig_jurkat"
+path = "dataset/raw/replogle_nadig/GSE264667_jurkat_raw_singlecell_01.h5ad"
+representation = "raw_integer_single_cell"
+role = "distribution_training_excluding_sealed_non_harm_partition"
+allowed_for_count_emitter = true
+
+[[datasets]]
+name = "nadig_hepg2"
+path = "dataset/raw/replogle_nadig/GSE264667_hepg2_raw_singlecell_01.h5ad"
+representation = "raw_integer_single_cell"
+role = "sealed_primary_zero_shot_validation"
+allowed_for_count_emitter = false
+
+[[datasets]]
+name = "feng_multi_ipsc"
+path = "dataset/raw/feng2026/feng24_preprocessed.h5ad"
+representation = "normalized_log1p_single_cell"
+role = "response_representation_pretraining"
+allowed_for_count_emitter = false
+
+[[datasets]]
+name = "scdfm_norman"
+path = "dataset/scdfm/extracted/norman/norman.h5ad"
+representation = "normalized_log1p_single_cell"
+role = "upstream_reproduction_only_crispr_activation"
+allowed_for_count_emitter = false
+
+[[datasets]]
+name = "scdfm_combosciplex"
+path = "dataset/scdfm/extracted/combosciplex/combosciplex.h5ad"
+representation = "normalized_log1p_single_cell"
+role = "upstream_reproduction_only_drug"
+allowed_for_count_emitter = false

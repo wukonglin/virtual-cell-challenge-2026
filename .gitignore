@@ -58,6 +58,8 @@ presentation/preview/
 
 # Scheduler and runtime spill files
 slurm-*.out
+vcc-*.out
+vcc-*.err
 core.*
 *.tmp
 *.part
