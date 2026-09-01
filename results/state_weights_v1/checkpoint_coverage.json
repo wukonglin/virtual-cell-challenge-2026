@@ -1,0 +1,51 @@
+{
+  "schema": "vcc-state-checkpoint-coverage-v1",
+  "state_model": {
+    "repository": "arcinstitute/st-se-replogle-full",
+    "revision": "d1441f5587ace12c46247b3703c7d25f24f8abb6",
+    "submodel": "hepg2_0.99"
+  },
+  "inputs": {
+    "perturbation_map": {
+      "relative_path": "dataset/state_pretrained/st-se-replogle-full-d1441f5/hepg2_0.99/pert_onehot_map.pt",
+      "size_bytes": 16746593,
+      "sha256": "f5621cab243a5135014af3867f63f8bf75cff19aee06d0f29a1bdecd2dbf47d0"
+    },
+    "perturbation_counts": {
+      "relative_path": "dataset/controls/pert_counts.csv",
+      "size_bytes": 1906,
+      "sha256": "f57edd7b912ebd718efc7ee9d0f334772513e7cc418d133ce525470e373b3276"
+    }
+  },
+  "embedding_map": {
+    "entries": 2024,
+    "unique_keys": 2024,
+    "dimensions": [
+      2024
+    ],
+    "dtypes": [
+      "torch.float32"
+    ],
+    "keys_sha256": "efd4dcb638ac58d5000ba3c786f370acc31ca684b2666839204fb524ba51d500",
+    "non_targeting_key_present": true
+  },
+  "challenge_targets": {
+    "rows": 300,
+    "unique_genes": 300,
+    "duplicate_rows": 0,
+    "ordered_values_sha256": "f170abd94f4735ab7a16efc8a3263076d50e0e470f989d38033d17e2edf5fd13",
+    "unique_genes_sha256": "f170abd94f4735ab7a16efc8a3263076d50e0e470f989d38033d17e2edf5fd13"
+  },
+  "coverage": {
+    "overlap_genes": 0,
+    "overlap_fraction": 0.0,
+    "missing_gene_count": 300,
+    "missing_genes_sha256": "f170abd94f4735ab7a16efc8a3263076d50e0e470f989d38033d17e2edf5fd13",
+    "extra_embedding_key_count": 2024,
+    "full_target_coverage": false
+  },
+  "safety": {
+    "torch_load_weights_only": true,
+    "unknown_checkpoint_globals": []
+  }
+}
