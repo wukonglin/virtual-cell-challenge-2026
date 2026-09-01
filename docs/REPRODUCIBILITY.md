@@ -433,6 +433,41 @@ is byte-identical. The generator and package wrappers accept only candidate
 versions `v3` or `v4`, preventing an arbitrary environment value from changing
 the production paths.
 
+### Executed v4 candidate run on 2026-08-31
+
+The complete offline v4 chain was executed on AIDA without a leaderboard
+submission. H100 signature job `860790` completed in 1 minute 57 seconds on an
+NVIDIA H100 80GB. It retained 9,522 of 9,675 K562 targets with ESM2 vectors,
+covered all 300 requested challenge targets, and selected the rank objective at
+epoch 4 with common scale `1.25`, residual scale `0.50`, and whole-cluster proxy
+`0.1006820524`. The signature NPZ SHA256 is
+`ef4e0f384ef67dbb9cb910bfbcd3d7a7f6c1b54c4840a1292917f1a9ad2068e6`.
+
+CPU prior job `860800` completed in 1 minute 33 seconds and passed the overlay,
+axis, fallback-preservation, calibration, and pseudobulk hash gates. Its v4
+pseudobulk SHA256 is
+`7b08f8852daa662c1769f2eb00f6915ebf0c16a3332d6ca118c755ce98077971`.
+
+Single-H100 generation job `860803` completed in 21 minutes 27 seconds with
+exit code `0:0`. The resulting H5AD has shape `360,000 x 18,533`, 900 required
+groups, and `2,051,087,553` nonzero entries, which is `96,396,094` below the
+signed int32 limit. All generation checks passed. Overall dropped count mass
+was `0.0592241884` and absolute library drift was `0.0594704175`; the respective
+context values were A `0.0688672081/0.0689821933`, B
+`0.0471537802/0.0477338097`, and C `0.0610039876/0.0610712342`. The H5AD is
+`16,437,781,680` bytes with SHA256
+`4d7de29483387b277cf9e5162889f755b751f8e3a1f44b33b283c7a4de88e3b8`.
+
+CPU package job `860804` completed in 6 minutes 47 seconds with exit code
+`0:0`. Official VCC dry-run, real packaging, and independent container
+validation all passed; the sole container member is `pred.h5ad.zst`. The final
+offline package is `2,802,677,760` bytes with SHA256
+`5f4b999cefe5b66c990e274beeb1fd41f6757b8328145bc934714b597757801a`.
+All nine entries in `cross_context_state_v4_SHA256SUMS` were independently
+verified. These checks establish format and production integrity, not model
+superiority. The candidate remains offline until paired v3-versus-v4 evidence
+shows improved perturbation signal without an expression-MSE regression.
+
 Build the raw HepG2 and Jurkat response atlases as independent research jobs:
 
 ```bash
