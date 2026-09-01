@@ -7,7 +7,7 @@
 #SBATCH --gpus=h100:1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
-#SBATCH --time=02:00:00
+#SBATCH --time=01:00:00
 #SBATCH --output=logs/h100_cross_context_%j.out
 #SBATCH --error=logs/h100_cross_context_%j.err
 
@@ -17,11 +17,39 @@ readonly PROJECT_DIR="${VCC_PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$(pwd)}}"
 readonly PYTHON_BIN="$PROJECT_DIR/.venv-state/bin/python"
 readonly MODEL_DIR="$PROJECT_DIR/artifacts/state_runs/state_sm_20k_v0"
 readonly CANDIDATE_VERSION="${VCC_CANDIDATE_VERSION:-v3}"
-if [[ "$CANDIDATE_VERSION" != "v3" && "$CANDIDATE_VERSION" != "v4" ]]; then
-  echo "VCC_CANDIDATE_VERSION must be v3 or v4" >&2
-  exit 2
-fi
-readonly RESPONSE_NPZ="$PROJECT_DIR/artifacts/v2/cross_context_pseudobulk_${CANDIDATE_VERSION}.npz"
+case "$CANDIDATE_VERSION" in
+  v3|v4)
+    readonly RESPONSE_VERSION="$CANDIDATE_VERSION"
+    readonly STATE_EFFECT_WEIGHT="0.05"
+    readonly STATE_EFFECT_CLIP="0.30"
+    readonly COMMON_RESPONSE_WEIGHT="1.0"
+    readonly LEARNED_RESPONSE_WEIGHT="1.0"
+    readonly COMBINED_EFFECT_CLIP="1.0"
+    readonly PSEUDOBULK_BLEND_WEIGHT="0.60"
+    readonly ZERO_INDUCTION_SCALE="1.0"
+    readonly MAX_DROPPED_COUNT_FRACTION="0.10"
+    readonly MAX_LIBRARY_DRIFT_FRACTION="0.15"
+    ;;
+  v5)
+    # V5 keeps the directional public-data response while removing the dense
+    # absolute-pseudobulk branch that dominated V4 expression calibration.
+    readonly RESPONSE_VERSION="v4"
+    readonly STATE_EFFECT_WEIGHT="0.01"
+    readonly STATE_EFFECT_CLIP="0.15"
+    readonly COMMON_RESPONSE_WEIGHT="0.10"
+    readonly LEARNED_RESPONSE_WEIGHT="0.22"
+    readonly COMBINED_EFFECT_CLIP="0.35"
+    readonly PSEUDOBULK_BLEND_WEIGHT="0.0"
+    readonly ZERO_INDUCTION_SCALE="0.0"
+    readonly MAX_DROPPED_COUNT_FRACTION="0.03"
+    readonly MAX_LIBRARY_DRIFT_FRACTION="0.05"
+    ;;
+  *)
+    echo "VCC_CANDIDATE_VERSION must be v3, v4, or v5" >&2
+    exit 2
+    ;;
+esac
+readonly RESPONSE_NPZ="$PROJECT_DIR/artifacts/v2/cross_context_pseudobulk_${RESPONSE_VERSION}.npz"
 readonly OUTPUT_H5AD="$PROJECT_DIR/artifacts/v2/cross_context_state_${CANDIDATE_VERSION}.h5ad"
 readonly OUTPUT_JSON="$PROJECT_DIR/artifacts/v2/cross_context_state_${CANDIDATE_VERSION}.json"
 
@@ -93,22 +121,22 @@ nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv,nohead
   --model-chunk-size 128 \
   --cells-per-group 400 \
   --target-limit 0 \
-  --state-effect-weight 0.05 \
-  --state-effect-clip 0.30 \
+  --state-effect-weight "$STATE_EFFECT_WEIGHT" \
+  --state-effect-clip "$STATE_EFFECT_CLIP" \
   --state-effect-bounding tanh \
   --response-npz "$RESPONSE_NPZ" \
-  --common-response-weight 1.0 \
-  --learned-response-weight 1.0 \
-  --combined-effect-clip 1.0 \
+  --common-response-weight "$COMMON_RESPONSE_WEIGHT" \
+  --learned-response-weight "$LEARNED_RESPONSE_WEIGHT" \
+  --combined-effect-clip "$COMBINED_EFFECT_CLIP" \
   --pseudobulk-npz "$RESPONSE_NPZ" \
-  --pseudobulk-blend-weight 0.60 \
-  --zero-induction-scale 1.0 \
+  --pseudobulk-blend-weight "$PSEUDOBULK_BLEND_WEIGHT" \
+  --zero-induction-scale "$ZERO_INDUCTION_SCALE" \
   --pseudobulk-depth-policy source-library \
   --target-policy off \
   --count-emission stochastic-round \
   --max-genes-per-cell 5900 \
-  --max-dropped-count-fraction 0.10 \
-  --max-absolute-library-drift-fraction 0.15 \
+  --max-dropped-count-fraction "$MAX_DROPPED_COUNT_FRACTION" \
+  --max-absolute-library-drift-fraction "$MAX_LIBRARY_DRIFT_FRACTION" \
   --groups-per-shard 20 \
   --concat-max-loaded-elements 20000000 \
   --compression lzf \
@@ -117,7 +145,11 @@ nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv,nohead
 test -s "$OUTPUT_H5AD"
 test -s "$OUTPUT_JSON"
 
-"$PYTHON_BIN" - "$OUTPUT_JSON" "$OUTPUT_H5AD" "$RESPONSE_NPZ" <<'PY'
+"$PYTHON_BIN" - \
+  "$OUTPUT_JSON" \
+  "$OUTPUT_H5AD" \
+  "$RESPONSE_NPZ" \
+  "$CANDIDATE_VERSION" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -126,6 +158,7 @@ import sys
 report = json.load(open(sys.argv[1], encoding="utf-8"))
 prediction = pathlib.Path(sys.argv[2]).resolve()
 response = pathlib.Path(sys.argv[3]).resolve()
+candidate = sys.argv[4]
 
 assert report["schema"] == "vcc-state-scorer-aware-counts-v2"
 assert report["full_official_contract"] is True
@@ -134,20 +167,33 @@ assert config["device"].startswith("cuda")
 assert "H100" in config["device_name"]
 assert config["cells_per_group"] == 400
 assert config["targets"] == 300
-assert config["state_effect_weight"] == 0.05
-assert config["state_effect_clip"] == 0.30
 assert config["state_effect_bounding"] == "tanh"
-assert config["common_response_weight"] == 1.0
-assert config["learned_response_weight"] == 1.0
-assert config["combined_effect_clip"] == 1.0
-assert config["pseudobulk_blend_weight"] == 0.60
-assert config["zero_induction_scale"] == 1.0
+expected = {
+    "v3": (0.05, 0.30, 1.0, 1.0, 1.0, 0.60, 1.0),
+    "v4": (0.05, 0.30, 1.0, 1.0, 1.0, 0.60, 1.0),
+    "v5": (0.01, 0.15, 0.10, 0.22, 0.35, 0.0, 0.0),
+}[candidate]
+actual = (
+    config["state_effect_weight"],
+    config["state_effect_clip"],
+    config["common_response_weight"],
+    config["learned_response_weight"],
+    config["combined_effect_clip"],
+    config["pseudobulk_blend_weight"],
+    config["zero_induction_scale"],
+)
+assert actual == expected, (actual, expected)
 assert config["pseudobulk_depth_policy"] == "source-library"
 assert config["target_policy"] == "off"
 assert config["count_emission"] == "stochastic-round"
 assert config["max_genes_per_cell"] == 5900
-assert config["max_dropped_count_fraction"] == 0.10
-assert config["max_absolute_library_drift_fraction"] == 0.15
+expected_mass_thresholds = {
+    "v3": (0.10, 0.15),
+    "v4": (0.10, 0.15),
+    "v5": (0.03, 0.05),
+}[candidate]
+assert config["max_dropped_count_fraction"] == expected_mass_thresholds[0]
+assert config["max_absolute_library_drift_fraction"] == expected_mass_thresholds[1]
 assert config["library_policy"] == (
     "independent-gene-expectations; no total renormalization"
 )
@@ -165,13 +211,16 @@ assert validation["groups"] == 900
 assert validation["nnz"] < 2140000000
 assert all(validation["checks"].values())
 assert report["scientific_qc"]["target_clamp_failures"] == []
-assert report["scientific_qc"]["induced_zero_emitted_entries"] > 0
+if candidate == "v5":
+    assert report["scientific_qc"]["induced_zero_emitted_entries"] == 0
+else:
+    assert report["scientific_qc"]["induced_zero_emitted_entries"] > 0
 mass = report["scientific_qc"]["count_mass"]
 assert mass["passed"] is True
 assert mass["violations"] == []
 assert mass["thresholds"] == {
-    "max_dropped_count_fraction": 0.10,
-    "max_absolute_library_drift_fraction": 0.15,
+    "max_dropped_count_fraction": expected_mass_thresholds[0],
+    "max_absolute_library_drift_fraction": expected_mass_thresholds[1],
     "evaluation_scopes": ["overall", "A", "B", "C"],
 }
 assert set(mass["by_context"]) == {"A", "B", "C"}
@@ -179,8 +228,10 @@ for scope in [mass["overall"], *mass["by_context"].values()]:
     assert scope["emitted_count_total_before_cap"] == (
         scope["emitted_count_total_after_cap"] + scope["dropped_count_total"]
     )
-    assert scope["dropped_count_fraction"] <= 0.10
-    assert scope["absolute_library_drift_fraction"] <= 0.15
+    assert scope["dropped_count_fraction"] <= expected_mass_thresholds[0]
+    assert scope["absolute_library_drift_fraction"] <= expected_mass_thresholds[1]
+if candidate == "v5":
+    assert mass["overall"]["dropped_count_fraction"] <= 0.025
 assert mass["overall"]["dropped_count_total"] == report["scientific_qc"][
     "dropped_counts_without_redistribution"
 ]

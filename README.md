@@ -100,10 +100,10 @@ panel and anchor set, but it remains below the official context-mean baseline
 of zero. The receipt and component-level diagnosis are recorded in
 [the baseline report](docs/BASELINE_RESULTS.md).
 
-## Current cross-context candidate
+## Cross-context candidates
 
-The next candidate is deliberately modular and has not yet been submitted. It
-addresses the failed STATE adapter's three main errors: a missing shared
+The cross-context system is deliberately modular. It addresses the initial
+STATE adapter's three main errors: a missing shared
 perturbation response, weak target discrimination, and a count emitter that
 could not activate source-zero genes.
 
@@ -135,8 +135,17 @@ The corrected full-axis effect prior is
 `41e910252fdfcdabd6193274c86dfd0582f3388c70acd7c833df1626235bbe14`;
 the derived context pseudobulk is
 `b892bf83d6e26f1d86781a4385cf7389ad8f344308cc16c319da1afb741b887c`.
-A CPU structural smoke passed with no failed checks. Full H100 generation,
-official packaging, and any submission remain separate promotion gates.
+A CPU structural smoke passed with no failed checks. V4 subsequently passed
+full H100 generation and official packaging, but its validation score regressed
+to `-0.0501571428`: PDS and Jaccard improved while raw expression MSE rose from
+`4.73891` to `30.18042` and LFC NMAE rose from `1.01769` to `1.18002`.
+
+V5 is an amplitude-rescue calibration, not a larger model. It disables the
+dense absolute-pseudobulk/zero-induction branch, shrinks common response to
+`0.10`, retains centered target-specific response at `0.22`, and tightens
+count-mass gates. Its single-H100 smoke is versioned separately and cannot be
+submitted. Full generation and packaging remain separate promotion gates; no
+V5 leaderboard submission has been made.
 
 The downloaded Feng multi-iPSC atlas adds 850,726 normalized-log1p cells,
 6,699 perturbations, and 182 direct validation-target overlaps for future

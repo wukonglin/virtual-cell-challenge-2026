@@ -1,0 +1,242 @@
+{
+  "schema": "vcc-held-hepg2-gamma-sweep-v1",
+  "created_date": "2026-09-01",
+  "purpose": "Offline amplitude calibration for a shrunken V5 response candidate.",
+  "sources": {
+    "real_h5ad": {
+      "path": "dataset/state_support/hepg2_holdout.h5ad",
+      "sha256": "2ccf9f9d5e08aa0115e2b1091036030cf038bd43eb235f2d89be4ffd6353c82d"
+    },
+    "predicted_h5ad": {
+      "path": "artifacts/holdout/hepg2_state_sm_step16000_direct.h5ad",
+      "sha256": "930f1f620a86497b4a5a429ad7fc4d189dcb79f4c96f2d6cdad34f1ab6c7d69f"
+    },
+    "proxy_implementation": {
+      "path": "scripts/calibrate_cross_context_effects.py",
+      "function": "scorer_proxy_metrics",
+      "sha256": "47194684be8bb184e20ea1367abbae9b1eefbcc2bd24f5c1e31efa9c1ff7c72a"
+    },
+    "exact_scorer_reference": {
+      "path": "external/cell-eval2",
+      "git_commit": "5e64833518a6603a0301cbe28185d49c30f4a986"
+    }
+  },
+  "data": {
+    "context": "HepG2",
+    "input_representation": "normalized log1p expression",
+    "perturbation_column": "target_gene",
+    "control_label": "non-targeting",
+    "non_control_perturbations": 68,
+    "genes": 18080,
+    "median_real_effect_l2_norm": 9.065225225133815,
+    "median_predicted_effect_l2_norm": 5.7049148901540265
+  },
+  "method": {
+    "truth_effect": "For each perturbation, subtract the arithmetic mean of the real non-targeting cells from the arithmetic mean of the real perturbation cells.",
+    "predicted_effect": "For each perturbation, subtract the arithmetic mean of the real non-targeting cells from the arithmetic mean of the predicted perturbation cells.",
+    "amplitude_transform": "Multiply every predicted perturbation effect by a positive scalar gamma before scoring.",
+    "target_gene_policy": "Exclude each perturbation's own target gene from row-wise error and top-set metrics.",
+    "pds_gene_policy": "Exclude all panel target genes from the cosine discrimination feature space.",
+    "top_k": 200,
+    "selection_observation": "The largest reported six-member proxy occurred at gamma 0.10; a quadratic fit to the reported MSE values places the approximate MSE optimum near gamma 0.12."
+  },
+  "invariant_positive_gamma_metrics": {
+    "pds_tie_aware_panel_masked": 0.635865,
+    "direction_fidelity": 0.584779,
+    "top_set_reach": 0.085515,
+    "top_set_jaccard": 0.045447
+  },
+  "sweep": [
+    {
+      "gamma": 0.0,
+      "six_member_proxy": -0.163672,
+      "pds_tie_aware_panel_masked": 0.5,
+      "expression_mse_ratio": 1.0,
+      "nmae": 1.0,
+      "direction_fidelity": 0.0,
+      "top_set_reach": 0.011912,
+      "top_set_jaccard": 0.006058
+    },
+    {
+      "gamma": 0.01,
+      "six_member_proxy": 0.100691,
+      "pds_tie_aware_panel_masked": 0.635865,
+      "expression_mse_ratio": 0.9987,
+      "nmae": 0.999595,
+      "direction_fidelity": 0.584779,
+      "top_set_reach": 0.085515,
+      "top_set_jaccard": 0.045447
+    },
+    {
+      "gamma": 0.02,
+      "six_member_proxy": 0.100947,
+      "pds_tie_aware_panel_masked": 0.635865,
+      "expression_mse_ratio": 0.997513,
+      "nmae": 0.999245,
+      "direction_fidelity": 0.584779,
+      "top_set_reach": 0.085515,
+      "top_set_jaccard": 0.045447
+    },
+    {
+      "gamma": 0.04,
+      "six_member_proxy": 0.101374,
+      "pds_tie_aware_panel_masked": 0.635865,
+      "expression_mse_ratio": 0.995479,
+      "nmae": 0.998717,
+      "direction_fidelity": 0.584779,
+      "top_set_reach": 0.085515,
+      "top_set_jaccard": 0.045447
+    },
+    {
+      "gamma": 0.06,
+      "six_member_proxy": 0.10169,
+      "pds_tie_aware_panel_masked": 0.635865,
+      "expression_mse_ratio": 0.993897,
+      "nmae": 0.998403,
+      "direction_fidelity": 0.584779,
+      "top_set_reach": 0.085515,
+      "top_set_jaccard": 0.045447
+    },
+    {
+      "gamma": 0.08,
+      "six_member_proxy": 0.101895,
+      "pds_tie_aware_panel_masked": 0.635865,
+      "expression_mse_ratio": 0.992767,
+      "nmae": 0.998303,
+      "direction_fidelity": 0.584779,
+      "top_set_reach": 0.085515,
+      "top_set_jaccard": 0.045447
+    },
+    {
+      "gamma": 0.1,
+      "six_member_proxy": 0.10199,
+      "pds_tie_aware_panel_masked": 0.635865,
+      "expression_mse_ratio": 0.992089,
+      "nmae": 0.998411,
+      "direction_fidelity": 0.584779,
+      "top_set_reach": 0.085515,
+      "top_set_jaccard": 0.045447
+    },
+    {
+      "gamma": 0.15,
+      "six_member_proxy": 0.101743,
+      "pds_tie_aware_panel_masked": 0.635865,
+      "expression_mse_ratio": 0.992373,
+      "nmae": 0.999613,
+      "direction_fidelity": 0.584779,
+      "top_set_reach": 0.085515,
+      "top_set_jaccard": 0.045447
+    },
+    {
+      "gamma": 0.2,
+      "six_member_proxy": 0.10116,
+      "pds_tie_aware_panel_masked": 0.635865,
+      "expression_mse_ratio": 0.995485,
+      "nmae": 1.002134,
+      "direction_fidelity": 0.584779,
+      "top_set_reach": 0.085515,
+      "top_set_jaccard": 0.045447
+    },
+    {
+      "gamma": 0.3,
+      "six_member_proxy": 0.100407,
+      "pds_tie_aware_panel_masked": 0.635865,
+      "expression_mse_ratio": 1.010187,
+      "nmae": 1.011128,
+      "direction_fidelity": 0.584779,
+      "top_set_reach": 0.085515,
+      "top_set_jaccard": 0.045447
+    },
+    {
+      "gamma": 0.4,
+      "six_member_proxy": 0.100407,
+      "pds_tie_aware_panel_masked": 0.635865,
+      "expression_mse_ratio": 1.036197,
+      "nmae": 1.025251,
+      "direction_fidelity": 0.584779,
+      "top_set_reach": 0.085515,
+      "top_set_jaccard": 0.045447
+    },
+    {
+      "gamma": 0.5,
+      "six_member_proxy": 0.100407,
+      "pds_tie_aware_panel_masked": 0.635865,
+      "expression_mse_ratio": 1.073514,
+      "nmae": 1.044279,
+      "direction_fidelity": 0.584779,
+      "top_set_reach": 0.085515,
+      "top_set_jaccard": 0.045447
+    },
+    {
+      "gamma": 0.75,
+      "six_member_proxy": 0.100407,
+      "pds_tie_aware_panel_masked": 0.635865,
+      "expression_mse_ratio": 1.216274,
+      "nmae": 1.111246,
+      "direction_fidelity": 0.584779,
+      "top_set_reach": 0.085515,
+      "top_set_jaccard": 0.045447
+    },
+    {
+      "gamma": 1.0,
+      "six_member_proxy": 0.100407,
+      "pds_tie_aware_panel_masked": 0.635865,
+      "expression_mse_ratio": 1.429704,
+      "nmae": 1.201409,
+      "direction_fidelity": 0.584779,
+      "top_set_reach": 0.085515,
+      "top_set_jaccard": 0.045447
+    },
+    {
+      "gamma": 1.25,
+      "six_member_proxy": 0.100407,
+      "pds_tie_aware_panel_masked": 0.635865,
+      "expression_mse_ratio": 1.713801,
+      "nmae": 1.31181,
+      "direction_fidelity": 0.584779,
+      "top_set_reach": 0.085515,
+      "top_set_jaccard": 0.045447
+    }
+  ],
+  "candidate_recommendation": {
+    "name": "V5-A",
+    "pseudobulk_blend_weight": 0.0,
+    "common_response_weight": 0.1,
+    "learned_response_weight": 0.22,
+    "recommended_state_effect_weight": 0.0,
+    "maximum_state_effect_weight": 0.01,
+    "rationale": "Strongly shrink the shared response to address expression error while retaining a larger centered target-specific response for discrimination."
+  },
+  "smoke_gates": {
+    "induced_zero_expected_entries": 0,
+    "induced_zero_emitted_entries": 0,
+    "maximum_overall_dropped_count_fraction": 0.025,
+    "maximum_context_dropped_count_fraction": 0.03,
+    "maximum_context_absolute_library_drift_fraction": 0.05,
+    "maximum_combined_effect_clip_fraction": 0.001,
+    "require_nonzero_effect_for_every_group": true,
+    "require_nondegenerate_target_dispersion": true,
+    "require_official_shape_axis_group_and_nnz_checks": true
+  },
+  "offline_promotion_gates": {
+    "scorer": "Pinned cell-eval2 raw-count vcc2026 preset",
+    "contexts": [
+      "held HepG2",
+      "held Jurkat"
+    ],
+    "require_each_context": true,
+    "maximum_expr_mse_unbiased_capped_norm": 1.0,
+    "maximum_de_wilcoxon_lfc_nmae": 1.02,
+    "minimum_pds_cosine": 0.52,
+    "require_scaled_composite_above_control_null": true,
+    "require_scaled_composite_above_v4_surrogate": true
+  },
+  "caveats": [
+    "This is an effect-space proxy sweep, not an exact VCC leaderboard reproduction.",
+    "The matrices are normalized log1p expression rather than raw counts.",
+    "The held panel contains 68 non-control perturbations rather than the official 300.",
+    "The proxy does not reproduce jackknife sampling correction, capped expression-noise correction, Wilcoxon significance gates, or official anchor scaling.",
+    "At gamma zero, top-set ties are degenerate; the reported reach and Jaccard values are implementation tie artifacts and must not be interpreted biologically.",
+    "The sweep supports the direction and approximate magnitude of amplitude shrinkage but does not by itself authorize promotion."
+  ]
+}

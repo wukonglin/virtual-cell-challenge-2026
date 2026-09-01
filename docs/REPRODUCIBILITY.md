@@ -430,8 +430,9 @@ sbatch \
 The v4 builder treats modeled zero effects as authoritative inside the
 signature's named target-gene mask and proves that every other fallback value
 is byte-identical. The generator and package wrappers accept only candidate
-versions `v3` or `v4`, preventing an arbitrary environment value from changing
-the production paths.
+versions `v3`, `v4`, or `v5`, preventing an arbitrary environment value from
+changing the production paths. V5 intentionally reuses the immutable v4
+response artifact and changes only the recorded count-adapter calibration.
 
 ### Executed v4 candidate run on 2026-08-31
 
@@ -483,6 +484,74 @@ rose from `4.7389056308` to `30.1804215609`, while raw LFC NMAE rose from
 calibration failure, not a packaging failure. V4 is therefore not promoted;
 future candidates must preserve its PDS/Jaccard gains while applying a much
 stronger amplitude shrinkage and an exact-counts calibration gate.
+
+### V5 amplitude-rescue candidate
+
+The v4 response audit identified a post-processing failure rather than an
+insufficiently large STATE model. Mapping effects from `log1p(CP50000)` back
+to raw-count log fold increased response RMS from `0.02224` to `0.13621`; the
+median per-target amplification was `7.03x`. The resulting response was 86.5%
+dense. With a pseudobulk blend of `0.60` and zero-induction scale of `1.0`, v4
+created 3.644 billion positive expectations at source-zero coordinates. The
+5,900-gene cap then removed 442.088 million counts. Expected mass before the
+cap differed from source mass by only 0.027%, so the failure was broad profile
+redistribution and cap loss, not an exploding total library.
+
+A held-HepG2 68-perturbation effect-space sweep placed the best common response
+scale near `0.10` (proxy MSE `0.992089` at `0.10` versus `1.429704` at `1.0`;
+proxy NMAE `0.998411` versus `1.201409`). Positive scalar shrinkage preserved
+the local PDS and direction/top-set proxies. This is a directional diagnostic,
+not an official score: it does not reproduce the raw-count scorer's jackknife,
+Wilcoxon gates, or panel aggregation.
+
+The versioned v5 configuration is therefore:
+
+```text
+state_effect_weight       0.01
+state_effect_clip         0.15
+common_response_weight    0.10
+learned_response_weight   0.22
+combined_effect_clip      0.35
+pseudobulk_blend_weight   0.00
+zero_induction_scale      0.00
+target_policy             off
+count_emission            stochastic-round
+```
+
+This keeps a larger centered target-specific residual than common response,
+while disabling the absolute pseudobulk branch that caused dense zero-gene
+activation. It also tightens generation gates to at most 3% dropped count mass
+per context, 2.5% overall, and 5% absolute library drift per context. The
+nonzero base-cap floor measured directly from released controls is about
+2.47%, 1.02%, and 2.12% in A, B, and C.
+
+Run the single-H100 technical smoke first:
+
+```bash
+mkdir -p logs artifacts/v2/smoke
+sbatch slurm/h100_generate_cross_context_v5_smoke.sbatch
+```
+
+The smoke covers 8 targets, all three contexts, and 32 cells per group. It
+requires an H100 at runtime, zero induced source-zero entries, fewer than 0.1%
+combined-effect clip events, exact mass accounting, and the tightened loss and
+library gates. It is not an accuracy benchmark and is never submitted.
+
+Only after those gates pass, generate the complete candidate:
+
+```bash
+generation_v5_job=$(sbatch --parsable \
+  --export=ALL,VCC_CANDIDATE_VERSION=v5 \
+  slurm/h100_generate_cross_context_v2.sbatch)
+
+sbatch \
+  --dependency="afterok:$generation_v5_job" \
+  --export=ALL,VCC_CANDIDATE_VERSION=v5 \
+  slurm/cpu_package_cross_context_v2.sbatch
+```
+
+Packaging and official submission remain separate decisions. A successful
+technical smoke does not establish that v5 beats the published STATE entry.
 
 Build the raw HepG2 and Jurkat response atlases as independent research jobs:
 

@@ -16,13 +16,17 @@ readonly PROJECT_DIR="${VCC_PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$(pwd)}}"
 readonly VCC_BIN="$PROJECT_DIR/.venv-vcc/bin/vcc"
 readonly VCC_PY="$PROJECT_DIR/.venv-vcc/bin/python"
 readonly CANDIDATE_VERSION="${VCC_CANDIDATE_VERSION:-v3}"
-if [[ "$CANDIDATE_VERSION" != "v3" && "$CANDIDATE_VERSION" != "v4" ]]; then
-  echo "VCC_CANDIDATE_VERSION must be v3 or v4" >&2
-  exit 2
-fi
+case "$CANDIDATE_VERSION" in
+  v3|v4) readonly RESPONSE_VERSION="$CANDIDATE_VERSION" ;;
+  v5) readonly RESPONSE_VERSION="v4" ;;
+  *)
+    echo "VCC_CANDIDATE_VERSION must be v3, v4, or v5" >&2
+    exit 2
+    ;;
+esac
 readonly PRED_H5AD="$PROJECT_DIR/artifacts/v2/cross_context_state_${CANDIDATE_VERSION}.h5ad"
 readonly PRED_JSON="$PROJECT_DIR/artifacts/v2/cross_context_state_${CANDIDATE_VERSION}.json"
-readonly RESPONSE_NPZ="$PROJECT_DIR/artifacts/v2/cross_context_pseudobulk_${CANDIDATE_VERSION}.npz"
+readonly RESPONSE_NPZ="$PROJECT_DIR/artifacts/v2/cross_context_pseudobulk_${RESPONSE_VERSION}.npz"
 readonly DRYRUN_JSON="$PROJECT_DIR/artifacts/v2/cross_context_state_${CANDIDATE_VERSION}_dryrun.json"
 readonly VCC_FILE="$PROJECT_DIR/artifacts/v2/cross_context_state_${CANDIDATE_VERSION}.vcc"
 readonly PREP_JSON="$PROJECT_DIR/artifacts/v2/cross_context_state_${CANDIDATE_VERSION}_prep.json"
@@ -86,7 +90,8 @@ df -h "$PROJECT_DIR" /tmp
   dataset/controls/pert_counts.csv \
   dataset/controls/context_A.h5ad \
   dataset/controls/context_B.h5ad \
-  dataset/controls/context_C.h5ad <<'PY'
+  dataset/controls/context_C.h5ad \
+  "$CANDIDATE_VERSION" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -104,6 +109,7 @@ controls = {
     "B": pathlib.Path(sys.argv[9]).resolve(),
     "C": pathlib.Path(sys.argv[10]).resolve(),
 }
+candidate = sys.argv[11]
 
 
 def sha256_file(path):
@@ -125,20 +131,33 @@ assert report["full_official_contract"] is True
 config = report["configuration"]
 assert config["cells_per_group"] == 400
 assert config["targets"] == 300
-assert config["state_effect_weight"] == 0.05
-assert config["state_effect_clip"] == 0.30
 assert config["state_effect_bounding"] == "tanh"
-assert config["common_response_weight"] == 1.0
-assert config["learned_response_weight"] == 1.0
-assert config["combined_effect_clip"] == 1.0
-assert config["pseudobulk_blend_weight"] == 0.60
-assert config["zero_induction_scale"] == 1.0
+expected = {
+    "v3": (0.05, 0.30, 1.0, 1.0, 1.0, 0.60, 1.0),
+    "v4": (0.05, 0.30, 1.0, 1.0, 1.0, 0.60, 1.0),
+    "v5": (0.01, 0.15, 0.10, 0.22, 0.35, 0.0, 0.0),
+}[candidate]
+actual = (
+    config["state_effect_weight"],
+    config["state_effect_clip"],
+    config["common_response_weight"],
+    config["learned_response_weight"],
+    config["combined_effect_clip"],
+    config["pseudobulk_blend_weight"],
+    config["zero_induction_scale"],
+)
+assert actual == expected, (actual, expected)
 assert config["pseudobulk_depth_policy"] == "source-library"
 assert config["target_policy"] == "off"
 assert config["count_emission"] == "stochastic-round"
 assert config["max_genes_per_cell"] == 5900
-assert config["max_dropped_count_fraction"] == 0.10
-assert config["max_absolute_library_drift_fraction"] == 0.15
+expected_mass_thresholds = {
+    "v3": (0.10, 0.15),
+    "v4": (0.10, 0.15),
+    "v5": (0.03, 0.05),
+}[candidate]
+assert config["max_dropped_count_fraction"] == expected_mass_thresholds[0]
+assert config["max_absolute_library_drift_fraction"] == expected_mass_thresholds[1]
 assert report["scorer_contract"]["perturbed_gene_excluded_from_all_six_metrics"] is True
 assert report["axes"]["contexts"] == ["A", "B", "C"]
 assert report["axes"]["targets"] == 300
@@ -153,8 +172,8 @@ mass = report["scientific_qc"]["count_mass"]
 assert mass["passed"] is True
 assert mass["violations"] == []
 assert mass["thresholds"] == {
-    "max_dropped_count_fraction": 0.10,
-    "max_absolute_library_drift_fraction": 0.15,
+    "max_dropped_count_fraction": expected_mass_thresholds[0],
+    "max_absolute_library_drift_fraction": expected_mass_thresholds[1],
     "evaluation_scopes": ["overall", "A", "B", "C"],
 }
 assert set(mass["by_context"]) == {"A", "B", "C"}
@@ -162,8 +181,10 @@ for scope in [mass["overall"], *mass["by_context"].values()]:
     assert scope["emitted_count_total_before_cap"] == (
         scope["emitted_count_total_after_cap"] + scope["dropped_count_total"]
     )
-    assert scope["dropped_count_fraction"] <= 0.10
-    assert scope["absolute_library_drift_fraction"] <= 0.15
+    assert scope["dropped_count_fraction"] <= expected_mass_thresholds[0]
+    assert scope["absolute_library_drift_fraction"] <= expected_mass_thresholds[1]
+if candidate == "v5":
+    assert mass["overall"]["dropped_count_fraction"] <= 0.025
 assert mass["overall"]["dropped_count_total"] == report["scientific_qc"][
     "dropped_counts_without_redistribution"
 ]
