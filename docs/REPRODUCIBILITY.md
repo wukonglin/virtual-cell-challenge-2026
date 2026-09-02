@@ -140,6 +140,8 @@ commit different from the independently supplied value, while the trainer
 checks its own, the gate consumer's, and the launcher's expected SHA-256 before
 data access and again after execution. It is not compact biological training,
 model-quality evidence, or authorization to submit.
+The sanitized clean-run receipt is tracked at
+`results/scdfm_v7/portable_trainer_smoke.json`.
 
 ## Stage 1: audit controls
 

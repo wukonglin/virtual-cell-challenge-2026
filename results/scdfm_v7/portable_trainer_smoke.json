@@ -1,0 +1,86 @@
+{
+  "schema": "vcc-scdfm-portable-trainer-smoke-sanitized-v1",
+  "status": "passed",
+  "scope": {
+    "phase": "v7_phase1_adapter",
+    "purpose": "gate_integrated_real_data_optimizer_smoke",
+    "compact_model_training_ready": false,
+    "model_quality_evaluation": false,
+    "state_anchor_consumed": false,
+    "challenge_prediction_created": false,
+    "official_submission_allowed": false
+  },
+  "slurm": {
+    "job_id": "862102",
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "elapsed": "00:00:14",
+    "node": "c0002",
+    "partition": "full"
+  },
+  "device": {
+    "name": "NVIDIA H100 80GB HBM3",
+    "torch": "2.13.0+cu130",
+    "torch_cuda_runtime": "13.0"
+  },
+  "git": {
+    "commit": "54a22f3bf43c92f9ea8827f9dcd7dcb0eb8ee04b",
+    "independently_expected_commit_verified": true,
+    "clean_at_start": true,
+    "clean_at_end": true
+  },
+  "registered_code": {
+    "trainer_sha256": "eae081058bec960f012fd2116e9410ff62c9016264d9f82e9f7f6dd80c6bc5dc",
+    "gate_consumer_sha256": "9e884bb50eec691dc973c811341f1e636358124514b8a696915c3fe147b9fa13",
+    "launcher_sha256": "6a53cc549bf4b17766c42374441eb5e64a19a6e907183745ad36e207bf7e7384",
+    "independently_expected_sha256_verified": true,
+    "unchanged_during_run": true
+  },
+  "trust_roots": {
+    "split_configuration_sha256": "f4f20f3b86002d74e7f3d44837eedd5c7dd270dc3f9ab5adae052484fad3bf6a",
+    "manifest_sha256": "3114e59b5430d140cfeeaccd8b2f6974ceb1c14ba254ec41597057ce7a70c439",
+    "preflight_sha256": "b5dfc61625625e8b70f126e9eb563f12f62ec629e8a138ef6045688c0f233ba1",
+    "portable_lock_sha256": "f9c5b8675a1a46c561c056574009722d1faa4bfaf8b4e12e7d7017d3c5a9628d",
+    "source_h5ad_sha256": "ffbe15f2c8f7ffcfd7b0ba9e6937d4ebc2d03b0179fa8234648a59bcb82c04a3",
+    "target_features_sha256": "a210e1cc7901513999b2bca3836ba9e2f203cd008be4e9a9d6412a2267de9748"
+  },
+  "authorization": {
+    "dataset": "nadig_jurkat",
+    "role": "training",
+    "source_row_count": 262956,
+    "allowed_row_count": 189593,
+    "excluded_row_count": 73363,
+    "allowed_source_row_indices_sha256": "d5eb4c0acfcbbc6d5f5fcba7586cbf49d0b66db2d620a5939d5a07ec25d9ae74",
+    "excluded_source_row_indices_sha256": "67a241b08b2da3b5bcf404a1b12e5ffee6d1fd7de634e000a1fd70d7994bae38"
+  },
+  "optimizer_smoke": {
+    "trainable_parameter_count": 1426752,
+    "cfm_velocity_mse": 13.319267272949219,
+    "multi_kernel_rbf_mmd2": 0.06186605989933014,
+    "total_loss": 13.350200653076172,
+    "replica_one_model_state_sha256": "e6d33e1431c49acbadd909df2e769a371266ccef1c4828098ffcc6c0f9b5c685",
+    "replica_two_model_state_sha256": "e6d33e1431c49acbadd909df2e769a371266ccef1c4828098ffcc6c0f9b5c685",
+    "deterministic_restart_identical": true
+  },
+  "raw_evidence": {
+    "receipt_size_bytes": 6669,
+    "receipt_sha256": "414cdb822a24a5ed74b37c915b33f60cde240a4aa4932695b3ccb9571956d4b1",
+    "stdout_size_bytes": 6971,
+    "stdout_sha256": "247b3a1abeaee6f5775ef4de73b9cc7c4baa702d6857b3c35eefdb40d553913b",
+    "stderr_size_bytes": 0,
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "checks": {
+    "portable_lock_verified": true,
+    "manifest_preflight_cross_link_verified": true,
+    "complete_allowed_row_sequence_verified_before_fitted_stages": true,
+    "evaluation_only_role_cannot_fit": true,
+    "sealed_targets_absent_from_selected_rows": true,
+    "target_features_authenticated": true,
+    "finite_optimizer_step_completed": true,
+    "deterministic_restart_verified": true,
+    "split_builder_and_kmeans_not_introduced": true,
+    "official_submission_artifact_created": false
+  },
+  "interpretation": "This receipt proves the clean, code-bound Phase-1 portable-gate trainer adapter executed on one H100 with authenticated real Jurkat rows and target features. It is not compact model training, biological quality evidence, a challenge prediction, or authorization to submit."
+}

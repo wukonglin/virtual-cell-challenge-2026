@@ -246,9 +246,10 @@ Jurkat non-harm manifest and allowed-row preflight. Their exact canonical
 bytes and a deterministic portable hash lock are now repository tracked. The
 independent portable consumer never imports the split builder or KMeans; it
 reconstructs the complete allowed-row sequence from authenticated labels and
-requires its preflight hash before any fitted stage. H100 job `862098` passed
-the initial real-data adapter smoke with two identical deterministic optimizer
-replicas. This closes the portable-gate integration blocker only: compact
+requires its preflight hash before any fitted stage. Clean, code-bound H100 job
+`862102` passed the initial real-data adapter smoke with two identical
+deterministic optimizer replicas. This closes the portable-gate integration
+blocker only: compact
 training, STATE-anchor composition, model-quality evaluation, and submission
 remain disabled. All three official
 archives and one released Norman checkpoint have passed local integrity

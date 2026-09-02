@@ -312,8 +312,8 @@ evaluation-only even though the preflight audits its rows.
 trainer. It opens the full data gate before normalization, feature selection,
 or model construction, then uses real authorized Jurkat cells and exact
 Arc-supplied 5,120-dimensional target features in a small CFM/MMD optimizer
-step. CPU validation and one-H100 job `862098` both produced identical
-same-seed restart replicas. The H100 job completed on `c0002` in 19 seconds
+step. CPU validation and clean, code-bound one-H100 job `862102` both produced
+identical same-seed restart replicas. The H100 job completed on `c0002` in 14 seconds
 with exit code `0:0` and empty stderr. It authenticated 189,593 allowed and
 73,363 excluded Jurkat rows; the allowed-row sequence SHA-256 is
 `d5eb4c0acfcbbc6d5f5fcba7586cbf49d0b66db2d620a5939d5a07ec25d9ae74`.
@@ -323,8 +323,9 @@ The hardened launcher additionally requires an independently supplied clean
 Git commit and launcher SHA-256. The trainer authenticates its own and the gate
 consumer's registered bytes before opening the data gate, binds the launcher
 for H100 runs, and re-hashes every registered code file after the optimizer
-step. The clean rerun documented below supersedes job `862098` as current-code
-evidence.
+step. Job `862102` supersedes the earlier dirty-tree job `862098` as
+current-code evidence. Its sanitized receipt is tracked at
+`results/scdfm_v7/portable_trainer_smoke.json`.
 
 This closes only the portable manifest/preflight consumer blocker. The adapter
 does not consume the frozen STATE anchor, perform a whole-cluster inner
