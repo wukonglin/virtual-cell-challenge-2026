@@ -1,0 +1,179 @@
+{
+  "amplitude_invariance": {
+    "exactly_inert": true,
+    "pds_by_factor": {
+      "0.25": 0.564526198439242,
+      "0.5": 0.564526198439242,
+      "1": 0.564526198439242,
+      "16": 0.564526198439242,
+      "2": 0.564526198439242,
+      "4": 0.564526198439242,
+      "8": 0.564526198439242
+    }
+  },
+  "axes": {
+    "genes": 7107,
+    "perturbations_including_control": 301,
+    "prediction_control_pseudobulk_identical_to_truth": true,
+    "ranked_genes_after_panel_exclusion": 6807,
+    "targets": 300
+  },
+  "candidate": "public_hepg2_p4_g100_raw_candidate",
+  "git": {
+    "clean": false,
+    "commit": "fbb12a06ae1755d799c8961c67792e81a2f14601"
+  },
+  "inputs": {
+    "agg_results": {
+      "path": "artifacts/public_v6/scoring/hepg2/p4_g100_p0_a010/cell_eval2/agg_results.csv",
+      "sha256": "69462b6d8e5da17a782736beba872173e36ed0fda07ce4066c3bf2c4def52649",
+      "size_bytes": 1190
+    },
+    "prediction_view": {
+      "path": "artifacts/public_v6/scoring/hepg2/p4_g100_p0_a010/prediction_view.h5ad",
+      "sha256": "7fe4da1f3f844b54303a255ece2ed4e1f9f5d0f2a5bfa5062694a0928abc7065",
+      "size_bytes": 2172601949
+    },
+    "truth_view": {
+      "path": "artifacts/public_v6/scoring/hepg2/p4_g100_p0_a010/truth_view.h5ad",
+      "sha256": "f6c532dd1bad5b649ebb3ce596e6e2d2187f99427da786cbadbf08c34a8ebf0b",
+      "size_bytes": 699721809
+    }
+  },
+  "panel_exclusion_cost": {
+    "cost": 0.17866220735785943,
+    "pds_with_exclusion": 0.564526198439242,
+    "pds_without_exclusion": 0.7431884057971014,
+    "top1_retrieval_chance": 1,
+    "top1_retrieval_with_exclusion": 3,
+    "top1_retrieval_without_exclusion": 32
+  },
+  "reference_arms": {
+    "control_only_no_skill": 0.5,
+    "oracle_pred_equals_real": 1.0
+  },
+  "reproduction": {
+    "independent_rederivation": 0.564526198439242,
+    "recorded_pds_cosine": 0.564526198439242,
+    "scorer_pds_cosine": 0.564526198439242
+  },
+  "schema": "vcc-pds-reachability-diagnostic-v1",
+  "scope": {
+    "candidate_created": false,
+    "counts_rendered": false,
+    "official_submission_allowed": false,
+    "purpose": "pds_reachability_diagnostic",
+    "read_only": true
+  },
+  "scorer": {
+    "bulk_target_sum": 50000.0,
+    "checkout": "external/cell-eval2",
+    "commit": "5e64833518a6603a0301cbe28185d49c30f4a986",
+    "discrimination": {
+      "control_source": "real",
+      "distance": "cosine",
+      "exclude_target_gene": true,
+      "exclusion_scope": "panel",
+      "rank_denominator": "n-1",
+      "tie_policy": "midrank"
+    },
+    "preset": "vcc2026"
+  },
+  "seed": 20260901,
+  "shared_response_removal": {
+    "best_fraction": "1.05",
+    "best_gain": 0.01214046822742465,
+    "pds_by_fraction": {
+      "0": 0.564526198439242,
+      "0.05": 0.5649721293199554,
+      "0.1": 0.565752508361204,
+      "0.15": 0.566376811594203,
+      "0.2": 0.5670680044593087,
+      "0.25": 0.5679041248606466,
+      "0.3": 0.5686064659977703,
+      "0.35": 0.5689743589743589,
+      "0.4": 0.5700557413600891,
+      "0.45": 0.5705574136008918,
+      "0.5": 0.5708361204013378,
+      "0.55": 0.5713935340022296,
+      "0.6": 0.5723745819397993,
+      "0.65": 0.5727647714604237,
+      "0.7": 0.5731549609810479,
+      "0.75": 0.5737904124860647,
+      "0.8": 0.5743701226309922,
+      "0.85": 0.5752619843924192,
+      "0.9": 0.5755741360089185,
+      "0.95": 0.5761984392419176,
+      "1": 0.5761872909698996,
+      "1.05": 0.5766666666666667,
+      "1.1": 0.5764325529542921,
+      "1.15": 0.5764214046822743,
+      "1.2": 0.5761204013377927,
+      "1.25": 0.5760089186176143,
+      "1.3": 0.5754960981047937,
+      "1.35": 0.5748383500557414,
+      "1.4": 0.5747603121516165,
+      "1.45": 0.5738795986622074,
+      "1.5": 0.5732998885172798,
+      "1.55": 0.5723076923076923,
+      "1.6": 0.5716610925306578,
+      "1.65": 0.5711259754738016,
+      "1.7": 0.5704124860646599,
+      "1.75": 0.5701449275362319,
+      "1.8": 0.569866220735786,
+      "1.85": 0.5690969899665552,
+      "1.9": 0.5687068004459309,
+      "1.95": 0.5679598662207358,
+      "2": 0.5676811594202898
+    }
+  },
+  "status": "passed",
+  "structure": {
+    "candidate": {
+      "matched_mean": 0.024792528840458215,
+      "matched_sd": 0.06457395769680767,
+      "mean_competitors_nearer": 130.20666666666668,
+      "mismatched_mean": 0.01340000214702065,
+      "mismatched_sd": 0.0597725639422517,
+      "pds": 0.564526198439242,
+      "separation_z": 0.19059792557073962
+    },
+    "common_response": {
+      "mean_pairwise_cosine_prediction": 0.1156921237595024,
+      "mean_pairwise_cosine_real": 0.1393870848760113,
+      "prediction_shared_axis_vs_real": 0.10046385276763634
+    },
+    "effective_rank_prediction": 194.0455923511619,
+    "effective_rank_real": 101.34636502163202,
+    "independent_error_references": {
+      "heterogeneous_signed": {
+        "pds_by_seed": {
+          "20260901": 0.6240133779264213,
+          "20260902": 0.636655518394649,
+          "20260903": 0.6183723522853958
+        },
+        "pds_mean": 0.626347082868822
+      },
+      "homogeneous": {
+        "pds_by_seed": {
+          "20260901": 0.9041025641025643,
+          "20260902": 0.9244481605351169,
+          "20260903": 0.9046711259754738
+        },
+        "pds_mean": 0.9110739502043851
+      }
+    },
+    "matched_cosine_distribution": {
+      "fraction_not_positive": 0.37333333333333335,
+      "max": 0.2502716932601305,
+      "mean": 0.024792528840458215,
+      "median": 0.012425156499118652,
+      "min": -0.1985414365026288
+    },
+    "shortfall_attribution": {
+      "note": "Both references carry the candidate's own directional accuracy with perfectly independent error. The homogeneous one discards per-target dispersion; the heterogeneous one keeps each target's signed matched cosine. The larger term names the dominant failure mode.",
+      "per_target_signal_deficit": 0.28472686733556307,
+      "target_correlated_error": 0.06182088442958
+    }
+  }
+}

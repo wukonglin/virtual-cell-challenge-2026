@@ -14,12 +14,30 @@ For each anonymous cell context and CRISPRi target, predict a distribution of po
 
 The evaluation cell lines have no released perturbation labels. Models must therefore learn perturbation effects from permitted external data and adapt them to each released non-targeting-control population.
 
+`A`/`B`/`C` is the leaderboard round only. Prizes are decided solely on a second,
+unseen round in contexts `D`/`E`/`F`, whose target panel and non-targeting controls are
+released **2026-10-22**, with the final entry due **2026-11-05 23:59 UTC**. No
+leaderboard is displayed in that window, the quota is two scored submissions per team
+per day, and only the last final entry counts. Any rule keyed to the literal labels
+`A`/`B`/`C` or to the current 300-target list must be removed before 2026-10-22.
+
 ## Official leaderboard history
 
 The table below is the consolidated submission ledger. `PDS`, `MSE`, `JAC`,
 `NMAE`, `FID`, and `Reach` are the six official normalized component scores,
 not the raw metrics. Rank is a volatile snapshot captured with each receipt;
 the immutable entry ID and score vector are the reproducible record.
+
+The short names are the leaderboard's, and two of them are misleading. `FID` is
+**DE direction fidelity** (`de_wilcoxon_direction_fidelity_yield_raw`), not Fréchet
+Inception Distance; the string "Fréchet" does not appear anywhere on the official site.
+`MSE` is a single panel-level noise-corrected error ratio with no per-perturbation
+value. Every component is reference-scaled as `s = (u - b) / (r - b)` against a
+per-context mean baseline `b` and a five-split half-replicate anchor `r`, so **a scaled
+score of 0 means "no better than predicting the context mean for every target"**. None
+of the six is a distribution-to-distribution divergence; all six collapse a group's 400
+cells to a count-summed pseudobulk profile or to a Wilcoxon rank-sum DE table. See
+[the primary-source audit](docs/research/NEXT_ROUTE_PRIMARY_SOURCE_AUDIT.md).
 
 | Submitted (UTC) | Model | Team scope | Overall | PDS | MSE | JAC | NMAE | FID | Reach | Receipt rank | Evidence |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
@@ -269,6 +287,22 @@ new audit/compatibility receipts had empty stderr. These are split,
 preflight, adapter, and compatibility checks, not model-quality evidence.
 See the [V7 design and stop rules](docs/PUBLIC_V7_SCDFM.md).
 
+The 2026-09-02 Phase 0 audit found five further blockers on this lane that are not
+resolved by building the missing anchor. The lane is retained; the blockers are execution
+blockers, not a scientific refutation. The HepG2 P4 panel is axis-disjoint from the registered V7 challenge axes (zero of 300
+target overlap, 9,623 versus 18,533 genes, one context versus three), so a HepG2 anchor
+can never authenticate under `configs/scdfm/vcc2026_v7_gamma1.toml`; the non-negativity
+gate fails at every registered non-zero weight because 57.24% of a
+`library_normalized_log1p` group is exactly 0.0 and a zero-mean centred residual drives
+28.62% of entries negative; the compositor needs about 320 GB peak against 138 GB
+available at the 900-group shape; the per-cell continuous tensor is deleted in-process on
+the H100 and is not recoverable by re-running any existing script; and
+`cell_axis_identity_sha256` and `latent_axis_identity_sha256` have no definition anywhere
+in the repository. Separately, the portable gate authorises 3 of its 7 registered
+protected stages, cannot read `competition_train.h5` because that file stores `X` as CSR,
+and its no-KMeans receipt field was falsified on CPU. These are recorded in the
+[primary-source audit](docs/research/NEXT_ROUTE_PRIMARY_SOURCE_AUDIT.md).
+
 The downloaded Feng multi-iPSC atlas adds 850,726 normalized-log1p cells,
 6,699 perturbations, and 182 direct validation-target overlaps for future
 representation training. It has no raw-count layer and is therefore excluded
@@ -308,22 +342,81 @@ logs/          Local scheduler logs; generated files are never tracked
 
 Exact commands and expected paths are documented in [Reproducibility](docs/REPRODUCIBILITY.md).
 
+## Perturbation-discrimination diagnosis
+
+`scripts/diagnose_pds_reachability.py` measures where the score actually is, using the
+pinned cell-eval2 checkout's own pseudobulk and discrimination implementations. Its
+receipt for the HepG2 incumbent is
+[`results/scdfm_v7/pds_reachability_hepg2_p4_g100.json`](results/scdfm_v7/pds_reachability_hepg2_p4_g100.json).
+Three measured results reorder the project's priorities.
+
+1. **The team's raw expression error is 4.79x the no-skill baseline, hidden by a clamp.**
+   Raw `expr_mse_unbiased_capped_norm` is `4.738905630752523`
+   (`results/state_direct_v0/submission.json`) against a published context-mean baseline
+   of 0.986-0.992. The scaled value is floored at `0.0000` because `mse` is the one
+   component bounded on `[0, 1]`, so the ledger entry above does **not** mean parity with
+   the baseline. Among the top 50, `sd(scoreMse) = 0.0799` exceeds
+   `sd(scorePds) = 0.0555`.
+2. **A pure amplitude rescale of the predicted effect is exactly inert on `pds_cosine`.**
+   Seven arms spanning a 64x amplitude range return `0.564526198439242`, bit-identical,
+   because cosine distance is scale free per row - here also because the prediction's
+   control pseudobulk is bit-identical to the real one. This does **not** mean amplitude
+   work is wasted: `pds` is blind to global expression scale, which is exactly where the
+   team is 4.79x off. A transformation preserving each group's per-gene integer count sum
+   leaves `pds_cosine` exactly unchanged but moves `expr_mse_unbiased_capped_norm` by
+   about 20%, because that metric's jackknife correction reads individual cells.
+3. **The incumbent's `pds` shortfall is 4.6:1 a per-target signal deficit, not structured
+   error.** On the scorer's ranked space `g100` reaches `pds_cosine` 0.564526 at 2.48%
+   mean per-target directional accuracy, with **37.3% of targets anti-correlated with
+   their own truth** and top-1 retrieval of **3 of 300** against a chance of 1. Two
+   independent-error references carrying the same accuracy score 0.9111 (homogeneous) and
+   0.6263 (per-target signed heterogeneity), attributing 0.2847 of the shortfall to signal
+   deficit and 0.0618 to error structure. The panel exclusion alone costs 0.178662
+   (0.743188 -> 0.564526).
+
+A real secondary finding: `g100`'s common response is genuinely cross-target structured
+(mean pairwise cosine 0.1157 against the truth's 0.1394) but points the wrong way -
+`cos(predicted shared axis, real shared axis) = 0.1005`. Removing it is worth `+0.01214`
+at fraction 1.05 and is free on CPU, but it closes only about 7% of the distance to the
+independent-error reference. Adding energy without information does nothing: an
+information-free perturbation at up to 4x the delta norm moves `pds` to 0.5395-0.5646,
+while rotating the delta 2% toward the truth reaches 0.686.
+
 ## Development priorities
 
-The immediate goal is not a larger generator. It is stronger target-specific biology:
+The route is unchanged: no evidence gathered on 2026-09-02 justifies abandoning the V7
+lane, and no single component is a route on its own - freezing five components and taking
+the world-number-one `pds` still lands below the rank-50 threshold, so the minimal
+sufficient set is `pds` + `nmae` + `reach`. What changed is that three separate defects
+are now measured rather than assumed:
 
-1. build sealed leave-one-target and leave-one-context public validation folds;
-2. implement scorer-aligned local proxy metrics and DE calibration;
-3. improve target representations and cross-context response transfer;
-4. calibrate effect magnitude, dispersion, and significant-gene cardinality;
-5. evaluate residual flow or diffusion only after it beats the matched statistical sampler;
-6. keep reinforcement learning offline and low priority because leaderboard feedback is sparse and delayed.
+1. run EXS-1, the expression-scale repair, first: raw `expr_mse_unbiased_capped_norm`
+   4.7389 against a 0.989 baseline is the one defect that is plainly calibration and not
+   biology (see [the decision memo](docs/research/NEXT_ROUTE_DECISION.md));
+2. run PDT-1, the public-transfer direction test, to establish whether public CRISPRi
+   atlases carry any transferable *trans* direction for an unseen context;
+3. improve target representations and cross-context transfer against `pds_cosine`
+   directly, with the anti-correlated-target fraction as a first-class diagnostic;
+4. measure the count renderer's ceiling: it reweights only genes already observed in each
+   source cell, and 57.24% of entries are exactly zero;
+5. build sealed leave-one-target and leave-one-context folds on a panel that is **not**
+   disjoint from the challenge target list - every current proxy panel has zero target
+   overlap with the VCC 300;
+6. judge the V7 scDFM residual on information rather than on inertness: its mean-preserving
+   constraint does **not** bind on the scored surface, so it can move `pds`, but only if
+   the residual is aligned;
+7. keep reinforcement learning offline and low priority because leaderboard feedback is
+   sparse and delayed.
 
 See [Project Plan](docs/PROJECT_PLAN.md) for milestones and team ownership.
 The self-contained
 [Claude Code next-route master prompt](docs/CLAUDE_CODE_NEXT_ROUTE_MASTER_PROMPT.md)
 combines the current V7 contracts with mandatory scDFM, STATE, and PertMind
-primary-source review and a fail-closed execution sequence.
+primary-source review and a fail-closed execution sequence. Its Phase 0 output is the
+[primary-source audit](docs/research/NEXT_ROUTE_PRIMARY_SOURCE_AUDIT.md) and the
+[decision memo](docs/research/NEXT_ROUTE_DECISION.md). The audit's measurements refine
+the master prompt's default scientific prior; after an adversarial verification pass they
+do not overturn it.
 
 ## Data and security policy
 
