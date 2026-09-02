@@ -225,7 +225,8 @@ submission was made. See the
 
 The `experiment/v7-scdfm-gamma1` branch investigates scDFM as a
 distributional residual expert while preserving the authenticated P4 STATE
-anchor at `state_effect_weight = 1.0`. The upstream source is pinned to commit
+raw-count reference selected at `state_effect_weight = 1.0`. The upstream
+source is pinned to commit
 `2cf6bca1f044e74c4e1dc586892c0495880cf125`, authenticated without modifying
 the third-party checkout, and separated from local datasets and weight
 archives.
@@ -236,8 +237,11 @@ the 18,533 output genes; it was trained on K562 CRISPR activation rather than
 CRISPR interference and does not establish unseen-cell-line generalization.
 V7 therefore registers continuous ESM2 target conditioning, whole-cell-line
 holdouts, a sealed HepG2 evaluation context, and centered residual weights
-`{0.00, 0.05, 0.10, 0.20}`. The zero-weight arm must byte-reproduce the fixed
-STATE factor and, after authenticated rendering, its raw-count candidate. No
+`{0.00, 0.05, 0.10, 0.20}`. A production continuous STATE factor and its
+provenance receipt have not yet been sealed. Before a residual sweep, V7 must
+build and authenticate that panel-specific factor; the zero-weight arm must
+byte-copy it and reproduce the matched raw-count reference only after the
+registered renderer is applied. No
 V7 artifact may be submitted until every registered scientific-promotion,
 provenance, count-rendering, raw-count-format, and official validation gate
 passes. Gate 1b remains incomplete and the exact ESM2 provenance is unresolved.
@@ -286,7 +290,7 @@ requirements/  Recorded software environments for modeling, CLI, and slides
 results/       Small sanitized metric snapshots only
 presentation/  English strategy deck, notes, builders, and validators
 dataset/       Local data mount point; data files are never tracked
-artifacts/     Local model/submission outputs; generated files are never tracked
+artifacts/     Small sealed manifests/locks tracked; large generated outputs ignored
 logs/          Local scheduler logs; generated files are never tracked
 ```
 
@@ -316,6 +320,10 @@ The immediate goal is not a larger generator. It is stronger target-specific bio
 6. keep reinforcement learning offline and low priority because leaderboard feedback is sparse and delayed.
 
 See [Project Plan](docs/PROJECT_PLAN.md) for milestones and team ownership.
+The self-contained
+[Claude Code next-route master prompt](docs/CLAUDE_CODE_NEXT_ROUTE_MASTER_PROMPT.md)
+combines the current V7 contracts with mandatory scDFM, STATE, and PertMind
+primary-source review and a fail-closed execution sequence.
 
 ## Data and security policy
 
