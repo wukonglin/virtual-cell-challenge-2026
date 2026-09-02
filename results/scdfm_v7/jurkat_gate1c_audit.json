@@ -1,0 +1,83 @@
+{
+  "schema": "vcc-scdfm-jurkat-gate1c-audit-sanitized-v1",
+  "status": "passed",
+  "scope": {
+    "offline_audit_only": true,
+    "metadata_only_selection": true,
+    "expression_matrix_values_accessed": false,
+    "model_training_performed": false,
+    "model_performance_evaluation": false,
+    "official_submission_artifact": false
+  },
+  "job": {
+    "slurm_job_id": "862052",
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "elapsed": "00:14:21",
+    "node": "c0014",
+    "stdout_sha256": "d499af47e3142dfd50bddbc7d30cc0e3b7e2651e3d53a696927f57d2028d73e7",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "configuration": {
+    "sha256": "f4f20f3b86002d74e7f3d44837eedd5c7dd270dc3f9ab5adae052484fad3bf6a",
+    "size_bytes": 11883,
+    "seed": 20260901
+  },
+  "artifacts": {
+    "sealed_manifest": {
+      "filename": "jurkat_non_harm.json",
+      "size_bytes": 260829,
+      "sha256": "3114e59b5430d140cfeeaccd8b2f6974ceb1c14ba254ec41597057ce7a70c439"
+    },
+    "manifest_authentication": {
+      "filename": "jurkat_manifest_auth_862052.json",
+      "size_bytes": 774,
+      "sha256": "9f9a41125158523b07608f837905b5beb2f36fbb99be231984bcc21accb7568b"
+    },
+    "training_preflight": {
+      "filename": "jurkat_training_preflight.json",
+      "size_bytes": 8271,
+      "sha256": "b5dfc61625625e8b70f126e9eb563f12f62ec629e8a138ef6045688c0f233ba1"
+    },
+    "preflight_authentication": {
+      "filename": "jurkat_preflight_auth_862052.json",
+      "size_bytes": 918,
+      "sha256": "ee75393ed31666c629d296d37f9c187c28f40aecc0fc3fac224aa366d528ed6f"
+    }
+  },
+  "partition": {
+    "algorithm": "sklearn.cluster.KMeans/lloyd",
+    "cluster_count": 30,
+    "held_cluster_ids": [0, 1, 2, 3, 4, 5, 6, 7, 8, 17, 18],
+    "clustering_universe_target_count": 2339,
+    "scored_held_target_count": 300,
+    "scored_held_cell_count": 35348,
+    "global_exclusion_target_count": 741,
+    "global_exclusion_cell_count": 73363,
+    "control_cell_count": 12013,
+    "minimum_treated_cells": 64
+  },
+  "checks": {
+    "manifest_status_sealed": true,
+    "manifest_authentication_passed": true,
+    "training_preflight_passed": true,
+    "preflight_authentication_passed": true,
+    "manifest_hash_cross_linked": true,
+    "preflight_hash_cross_linked": true,
+    "canonical_reconstruction_exact": true,
+    "repeated_single_thread_cluster_build_identical": true,
+    "whole_esm2_clusters_held": true,
+    "historical_and_state_support_targets_excluded_from_scoring": true,
+    "held_targets_absent_from_every_allowed_source_row_set": true,
+    "expression_matrix_values_accessed": false,
+    "stderr_empty": true
+  },
+  "fail_closed_status": {
+    "gate_1b_upstream_provenance_complete": false,
+    "gate_1b_allowed": false,
+    "gate_1c_official_opaque_artifact_authenticated": true,
+    "portable_trainer_integration_implemented": false,
+    "production_training_ready": false
+  },
+  "interpretation": "The deterministic Jurkat whole-ESM2-cluster non-harm partition and its allowed-row preflight were built and independently reconstructed on a CPU Slurm node. This closes the offline Gate 1c split audit only. Training remains forbidden until a repository-tracked portable hash lock and trainer consumer are implemented."
+}

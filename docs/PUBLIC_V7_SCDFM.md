@@ -213,10 +213,12 @@ each training fold.
 The primary split holds out the complete HepG2 context. Within every remaining
 training context, complete ESM2 target clusters are held out. Jurkat has an
 additional fail-closed secondary partition registered at
-`artifacts/scdfm/v7/splits/jurkat_non_harm.json`; training cannot start until
-that manifest is created, authenticated, and excluded from every fitted
+`artifacts/scdfm/v7/splits/jurkat_non_harm.json`. CPU Slurm job `862052`
+created and independently authenticated that manifest and its allowed-row
+preflight. Training still cannot start until a repository-tracked portable
+hash lock and trainer consumer enforce both artifacts before every fitted
 transform. A cell line, donor, target cluster, perturbation group, or fitted
-graph may not cross its registered boundary.
+graph may not cross the registered boundary.
 
 The historical V5.1 Jurkat 300-target panel is a denylist, not the V7 seal: its
 scores already informed a prior promotion decision. The dedicated V7 builder
@@ -288,6 +290,19 @@ reject any different row selection or held-cluster label before normalization,
 feature selection, graph construction, model/decoder fitting, checkpoint
 selection, or hyperparameter selection. Until that separate portable adapter
 and lock exist, training is forbidden rather than merely policy-gated.
+
+CPU Slurm job `862052` completed the four-stage audit on node `c0014` in
+14 minutes 21 seconds with exit code `0:0` and empty stderr. The sealed
+manifest is 260,829 bytes with SHA-256
+`3114e59b5430d140cfeeaccd8b2f6974ceb1c14ba254ec41597057ce7a70c439`;
+the 8,271-byte preflight has SHA-256
+`b5dfc61625625e8b70f126e9eb563f12f62ec629e8a138ef6045688c0f233ba1`.
+Both independent reconstructing authenticators passed and cross-bound those
+hashes. The partition holds 300 scored targets and 35,348 treated cells across
+11 complete ESM2 clusters while globally excluding 741 targets and 73,363
+cells from every registered fitting scope. No expression-matrix value was
+read during selection or preflight. The sanitized receipt is
+`results/scdfm_v7/jurkat_gate1c_audit.json`.
 
 Arc's exact 19,790-by-5,120 target-feature artifact is structurally
 authenticated, but its release does not identify the upstream model revision,
@@ -413,20 +428,17 @@ preflight with continuous target conditions and the authenticated
 passes, deterministic restart, and no train/validation identity overlap before
 compact training can be enabled.
 
-The historical synthetic objective-contract portion completed on one NVIDIA
-H100 80 GB as Slurm job `861798` in four seconds. It passed all 17 checks, used 67,563,520
-bytes of peak allocated GPU memory, and produced finite CFM, MMD, total-loss,
-gradient, and post-step parameter values. Its receipt binds the then-registered
-configuration SHA-256 and supersedes job `861790`. The registered configuration,
-project wrapper, and launcher have since changed; the result is therefore stale
-for the current contract and a fresh H100 run is required. The historical run
-validated objective wiring and GPU compatibility only; it is not evidence of
-prediction quality. The
-sanitized receipt is tracked at
+The current synthetic objective contract completed on one NVIDIA H100 80 GB
+as Slurm job `862053` in four seconds. It passed all 19 checks, used
+67,563,520 bytes of peak allocated GPU memory, and produced finite CFM, MMD,
+total-loss, gradient, and post-step parameter values. Its receipt binds the
+exact current configuration, project wrapper, and Slurm launcher SHA-256
+values and supersedes stale job `861798`. The configuration is parsed from
+the exact bytes read and hashed through one no-follow file descriptor,
+eliminating a separate path-reopen window. This validates current objective
+wiring and GPU compatibility only; it is not evidence of prediction quality.
+The sanitized receipt is tracked at
 `results/scdfm_v7/h100_contract_smoke.json`.
-The current wrapper parses the configuration from the exact bytes read and
-hashed through one no-follow file descriptor, eliminating a separate
-path-reopen window; this stronger claim remains pending H100 execution.
 
 The synthetic contract intentionally uses the project STATE environment
 (PyTorch 2.13.0+cu130), while released-checkpoint reconstruction uses the

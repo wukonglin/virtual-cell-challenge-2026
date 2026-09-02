@@ -240,21 +240,22 @@ holdouts, a sealed HepG2 evaluation context, and centered residual weights
 STATE factor and, after authenticated rendering, its raw-count candidate. No
 V7 artifact may be submitted until every registered scientific-promotion,
 provenance, count-rendering, raw-count-format, and official validation gate
-passes. Gate 1b remains incomplete, the exact ESM2 provenance is unresolved,
-and the required sealed Jurkat non-harm manifest has not yet been created, so
-the lane is not training-ready or submission-ready. All three official
+passes. Gate 1b remains incomplete and the exact ESM2 provenance is unresolved.
+CPU Slurm job `862052` built and independently authenticated the sealed
+Jurkat non-harm manifest and allowed-row preflight, but no portable trainer or
+repository-tracked hash lock consumes them yet, so the lane remains neither
+training-ready nor submission-ready. All three official
 archives and one released Norman checkpoint have passed local integrity
 audits. The Arc-supplied 5,120-dimensional target-feature bytes also pass a
 strict opaque-artifact audit with complete 300-target coverage, but the
 release does not identify the upstream checkpoint, protein mapping, or
-pooling rule; this does not open Gate 1b. Historical H100 job `861798`
-passed all 17 synthetic-objective checks for its recorded configuration, but
-the registered configuration, wrapper, and launcher have since changed, so a
-fresh current-contract H100 run is required. Hardened H100 job `861799`
+pooling rule; this does not open Gate 1b. Current-contract H100 job `862053`
+passed all 19 synthetic-objective checks while binding the exact configuration,
+wrapper, and launcher bytes. Hardened H100 job `861799`
 strict-loaded the 60.4-million-parameter
-released model exclusively from immutable, byte-bound Git objects. Both runs
-had empty stderr; only the released-checkpoint result remains current. These
-are compatibility checks, not model-quality evidence.
+released model exclusively from immutable, byte-bound Git objects. All three
+new audit/compatibility receipts had empty stderr. These are split,
+preflight, and compatibility checks, not model-quality evidence.
 See the [V7 design and stop rules](docs/PUBLIC_V7_SCDFM.md).
 
 The downloaded Feng multi-iPSC atlas adds 850,726 normalized-log1p cells,
