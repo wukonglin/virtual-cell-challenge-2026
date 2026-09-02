@@ -1,0 +1,190 @@
+{
+  "configuration": {
+    "filename": "vcc2026_v7_gamma1.toml",
+    "sha256": "f4f20f3b86002d74e7f3d44837eedd5c7dd270dc3f9ab5adae052484fad3bf6a",
+    "size_bytes": 11883
+  },
+  "consumer_contract": {
+    "complete_allowed_index_sequence_must_be_authorized_before_any_stage": true,
+    "expression_matrix_values_accessed_by_preflight": false,
+    "held_target_labels_in_any_allowed_batch_are_fatal": true,
+    "only_registered_allowed_source_row_indices_may_be_loaded": true,
+    "portable_trainer_integration_implemented": false,
+    "production_training_ready": false,
+    "receipt_must_be_authenticated_before_checkpoint_selection": true,
+    "receipt_must_be_authenticated_before_graph_or_decoder_construction": true,
+    "receipt_must_be_authenticated_before_model_fit": true,
+    "receipt_must_be_authenticated_before_normalization_or_feature_selection": true
+  },
+  "datasets": [
+    {
+      "allowed_row_count": 189593,
+      "allowed_source_row_indices_sha256": "d5eb4c0acfcbbc6d5f5fcba7586cbf49d0b66db2d620a5939d5a07ec25d9ae74",
+      "allowed_target_list_sha256": "9ffda4cfd579108df32d53505c64ccc02f55f4cb588e6649cff372e31ed01e42",
+      "dataset": "nadig_jurkat",
+      "excluded_row_count": 73363,
+      "excluded_source_row_indices_sha256": "67a241b08b2da3b5bcf404a1b12e5ffee6d1fd7de634e000a1fd70d7994bae38",
+      "held_targets_absent_from_allowed_rows": true,
+      "row_count": 262956,
+      "source": {
+        "batch_count": 55,
+        "cell_count": 262956,
+        "control_cells": 12013,
+        "expression_matrix_values_accessed": false,
+        "filename": "GSE264667_jurkat_raw_singlecell_01.h5ad",
+        "gene_columns": 8882,
+        "guide_design_count": 2679,
+        "matrix_dtype": "float32",
+        "obs_columns_used": [
+          "cell_barcode",
+          "gene",
+          "gem_group",
+          "sgID_AB"
+        ],
+        "opaque_file_bytes_hashed_without_expression_deserialization": true,
+        "sha256": "ffbe15f2c8f7ffcfd7b0ba9e6937d4ebc2d03b0179fa8234648a59bcb82c04a3",
+        "shape": [
+          262956,
+          8882
+        ],
+        "size_bytes": 9366490264,
+        "treated_target_count": 2393,
+        "var_columns_used": [
+          "gene_name"
+        ]
+      }
+    },
+    {
+      "allowed_row_count": 206492,
+      "allowed_source_row_indices_sha256": "c1e6f8ff2bf3297ad9841e0cf87a6664311d075ba6a9046f9ec4f85ed2479e8e",
+      "allowed_target_list_sha256": "e67a9618082a3808c1e1a04bba117f4a6076dcdd775ec1711449b5f6eef8a86b",
+      "dataset": "competition_train.h5",
+      "excluded_row_count": 14781,
+      "excluded_source_row_indices_sha256": "3a982ca6ed09940a78e434284b4dfeed754aca87d6ce29942ac0c3cbe6e6f4a3",
+      "held_targets_absent_from_allowed_rows": true,
+      "row_count": 221273,
+      "source": {
+        "expression_matrix_values_accessed": false,
+        "filename": "competition_train.h5",
+        "row_count": 221273,
+        "sha256": "3dc850b767553648b91bf0b21a0e753be3010f36cf0cf3e98f6ef616c75aa847",
+        "size_bytes": 15482098599,
+        "target_count": 150,
+        "target_list_sha256": "ad19ff49af1f8358545d7ce65c5bb5bd9b0a583b4b7ed584de86949e1f98b740"
+      }
+    },
+    {
+      "allowed_row_count": 8353,
+      "allowed_source_row_indices_sha256": "7f4bd4adfa3633ca3ff5132fbab21eb4327bb72a5ced0584f3ebed95ed23d92f",
+      "allowed_target_list_sha256": "d939b78295f0d3f8239b196a6f2a4fd0967deae10893dcd70d195a1fa6707f10",
+      "dataset": "hepg2.h5",
+      "excluded_row_count": 1033,
+      "excluded_source_row_indices_sha256": "e1676c82b2fc669cee2cb8f21aa04477b374e47c7201e4fa96d20501b426764b",
+      "held_targets_absent_from_allowed_rows": true,
+      "row_count": 9386,
+      "source": {
+        "expression_matrix_values_accessed": false,
+        "filename": "hepg2.h5",
+        "row_count": 9386,
+        "sha256": "a6c508793d96eeba7977f9f64de1dba1405db617f7b8558f248ba95c718d2f65",
+        "size_bytes": 680426532,
+        "target_count": 68,
+        "target_list_sha256": "825e096892d42f0e5329840bfaff25c41703bdabf1a679b100beef80f71faa14"
+      }
+    },
+    {
+      "allowed_row_count": 19313,
+      "allowed_source_row_indices_sha256": "2b444ee370cdd18218f46d6336260bd20f50bdae4a87abc41cbafb30212fa3e2",
+      "allowed_target_list_sha256": "d939b78295f0d3f8239b196a6f2a4fd0967deae10893dcd70d195a1fa6707f10",
+      "dataset": "jurkat.h5",
+      "excluded_row_count": 2099,
+      "excluded_source_row_indices_sha256": "4ff6d5314e391d3c2b3a87dca0666f2467d43f60713cfcecfa69bae3a8f54bbb",
+      "held_targets_absent_from_allowed_rows": true,
+      "row_count": 21412,
+      "source": {
+        "expression_matrix_values_accessed": false,
+        "filename": "jurkat.h5",
+        "row_count": 21412,
+        "sha256": "4d23ea34563e7875e75a9207f986fe78a9789b329a0ce5599aa79cccb9215fe7",
+        "size_bytes": 1551183536,
+        "target_count": 68,
+        "target_list_sha256": "825e096892d42f0e5329840bfaff25c41703bdabf1a679b100beef80f71faa14"
+      }
+    },
+    {
+      "allowed_row_count": 16315,
+      "allowed_source_row_indices_sha256": "d301a8fd4dbab910dea710e6e14d9180e89825ea35240b437db716d4ae448bc5",
+      "allowed_target_list_sha256": "cc954dd7b9b414779f02fa0d1aba22c44175d65a041cd5c6225cd3ae45d77a56",
+      "dataset": "k562.h5",
+      "excluded_row_count": 2150,
+      "excluded_source_row_indices_sha256": "d6e973b8947f005435c99072f1d182b3e684afe90c74bc59d29c477c2fc4a1fa",
+      "held_targets_absent_from_allowed_rows": true,
+      "row_count": 18465,
+      "source": {
+        "expression_matrix_values_accessed": false,
+        "filename": "k562.h5",
+        "row_count": 18465,
+        "sha256": "ae318acc14bbf44752088352dcc2853fbc6a633184fe71a55cd6848ca431537c",
+        "size_bytes": 1337939102,
+        "target_count": 53,
+        "target_list_sha256": "872c7eb99e6f751ced603a8deed38a2cfcd8e42a90eafa69ba7209ba3dcd9755"
+      }
+    },
+    {
+      "allowed_row_count": 106294,
+      "allowed_source_row_indices_sha256": "cace55848fe7a259cfcfd408d66d8ff619c1c90a4e1308e1f0518578a93e6211",
+      "allowed_target_list_sha256": "dbb663bdd919a0d6e264b2d578a6f4725120212abb80d6b1193cf8ddcfbf918a",
+      "dataset": "k562_gwps.h5",
+      "excluded_row_count": 5311,
+      "excluded_source_row_indices_sha256": "c26a25b300ad4ddb7b0e8b2702245c52755c12f1c90f544c7b5557db01f208a3",
+      "held_targets_absent_from_allowed_rows": true,
+      "row_count": 111605,
+      "source": {
+        "expression_matrix_values_accessed": false,
+        "filename": "k562_gwps.h5",
+        "row_count": 111605,
+        "sha256": "b16f446d6aa8ca6f2bfecb65bb4a716f7cfa7dabfb5e876a7fb349ba5d0aa38b",
+        "size_bytes": 8083142186,
+        "target_count": 183,
+        "target_list_sha256": "3b9a833603ef825a29aa5e91e0abcc80de014f443ed65620f0f407bd3b21bdc9"
+      }
+    },
+    {
+      "allowed_row_count": 20112,
+      "allowed_source_row_indices_sha256": "3c7096bff8296deeebc947db8453ec4a21491a0c2a1e621338f1f80676710b29",
+      "allowed_target_list_sha256": "d939b78295f0d3f8239b196a6f2a4fd0967deae10893dcd70d195a1fa6707f10",
+      "dataset": "rpe1.h5",
+      "excluded_row_count": 2205,
+      "excluded_source_row_indices_sha256": "36727fc3f1ed96f5ec8c5bf0a19ec26309aa840ecf650b63767db283e8f01f86",
+      "held_targets_absent_from_allowed_rows": true,
+      "row_count": 22317,
+      "source": {
+        "expression_matrix_values_accessed": false,
+        "filename": "rpe1.h5",
+        "row_count": 22317,
+        "sha256": "51ebd598c3f6f171e4c0668fa3539e943aec6b77514aa1061773e4297696dff9",
+        "size_bytes": 1616886534,
+        "target_count": 68,
+        "target_list_sha256": "825e096892d42f0e5329840bfaff25c41703bdabf1a679b100beef80f71faa14"
+      }
+    }
+  ],
+  "global_exclusion_scopes": [
+    "model_fit",
+    "checkpoint_selection",
+    "normalization_fit",
+    "feature_selection",
+    "graph_construction",
+    "decoder_fit",
+    "hyperparameter_selection"
+  ],
+  "global_exclusion_target_count": 741,
+  "global_exclusion_target_list_sha256": "2f6f4c094779ab1f99a01ddb414fd1d5e5ad74fef927a462dc8370d0c845811b",
+  "schema": "vcc-scdfm-jurkat-training-preflight-v1",
+  "sealed_manifest": {
+    "filename": "jurkat_non_harm.json",
+    "sha256": "3114e59b5430d140cfeeaccd8b2f6974ceb1c14ba254ec41597057ce7a70c439",
+    "size_bytes": 260829
+  },
+  "status": "passed"
+}

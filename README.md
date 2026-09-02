@@ -242,9 +242,15 @@ V7 artifact may be submitted until every registered scientific-promotion,
 provenance, count-rendering, raw-count-format, and official validation gate
 passes. Gate 1b remains incomplete and the exact ESM2 provenance is unresolved.
 CPU Slurm job `862052` built and independently authenticated the sealed
-Jurkat non-harm manifest and allowed-row preflight, but no portable trainer or
-repository-tracked hash lock consumes them yet, so the lane remains neither
-training-ready nor submission-ready. All three official
+Jurkat non-harm manifest and allowed-row preflight. Their exact canonical
+bytes and a deterministic portable hash lock are now repository tracked. The
+independent portable consumer never imports the split builder or KMeans; it
+reconstructs the complete allowed-row sequence from authenticated labels and
+requires its preflight hash before any fitted stage. H100 job `862098` passed
+the initial real-data adapter smoke with two identical deterministic optimizer
+replicas. This closes the portable-gate integration blocker only: compact
+training, STATE-anchor composition, model-quality evaluation, and submission
+remain disabled. All three official
 archives and one released Norman checkpoint have passed local integrity
 audits. The Arc-supplied 5,120-dimensional target-feature bytes also pass a
 strict opaque-artifact audit with complete 300-target coverage, but the
@@ -255,7 +261,7 @@ wrapper, and launcher bytes. Hardened H100 job `861799`
 strict-loaded the 60.4-million-parameter
 released model exclusively from immutable, byte-bound Git objects. All three
 new audit/compatibility receipts had empty stderr. These are split,
-preflight, and compatibility checks, not model-quality evidence.
+preflight, adapter, and compatibility checks, not model-quality evidence.
 See the [V7 design and stop rules](docs/PUBLIC_V7_SCDFM.md).
 
 The downloaded Feng multi-iPSC atlas adds 850,726 normalized-log1p cells,

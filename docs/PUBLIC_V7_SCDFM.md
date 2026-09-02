@@ -215,10 +215,12 @@ training context, complete ESM2 target clusters are held out. Jurkat has an
 additional fail-closed secondary partition registered at
 `artifacts/scdfm/v7/splits/jurkat_non_harm.json`. CPU Slurm job `862052`
 created and independently authenticated that manifest and its allowed-row
-preflight. Training still cannot start until a repository-tracked portable
-hash lock and trainer consumer enforce both artifacts before every fitted
-transform. A cell line, donor, target cluster, perturbation group, or fitted
-graph may not cross the registered boundary.
+preflight. The separately tracked portable lock and Phase-1 trainer adapter now
+enforce both artifacts before every fitted transform. This authorizes only the
+adapter smoke; compact training still cannot start until its own registered
+training and selection contract is implemented. A cell line, donor, target
+cluster, perturbation group, or fitted graph may not cross the registered
+boundary.
 
 The historical V5.1 Jurkat 300-target panel is a denylist, not the V7 seal: its
 scores already informed a prior promotion decision. The dedicated V7 builder
@@ -281,15 +283,54 @@ overwrite. The underlying offline audit commands are:
 
 These commands run only in the pinned `.venv-state` split-audit environment;
 they may reconstruct KMeans to audit determinism. They are not a trainer
-integration. No V7 trainer exists, so `training_ready=false`, the portable
-hash-lock is unresolved, and the test-only row-gate loader rejects production
-use. A future trainer must not import or rerun KMeans. Instead it must consume
-repository-tracked, canonical-byte manifest and preflight artifacts through an
-immutable lock containing both SHA-256 values, verify their cross-link, and
-reject any different row selection or held-cluster label before normalization,
-feature selection, graph construction, model/decoder fitting, checkpoint
-selection, or hyperparameter selection. Until that separate portable adapter
-and lock exist, training is forbidden rather than merely policy-gated.
+integration. The split-audit TOML remains byte immutable because both sealed
+artifacts bind its complete 11,883-byte identity. Its historical
+`training_ready=false` and unresolved-lock fields must not be edited in place.
+
+The activation layer is now separate. Git tracks the exact canonical manifest,
+preflight, and `portable_training_gate_lock.json`. The deterministic lock binds
+the split configuration, both sealed artifacts, their cross-link, the 741-target
+global exclusion, seven protected stages, seven source identities, exact
+allowed/excluded row-sequence hashes, and explicit training/evaluation roles.
+Its SHA-256 is
+`f9c5b8675a1a46c561c056574009722d1faa4bfaf8b4e12e7d7017d3c5a9628d`.
+It contains only repository-relative POSIX paths and no timestamp, hostname,
+UID, inode, mtime, or absolute path.
+
+`scripts/scdfm_portable_training_gate.py` is an independent consumer and does
+not import `scdfm_jurkat_non_harm.py`, scikit-learn, or KMeans. It verifies an
+independently supplied lock hash; canonical JSON bytes; the
+manifest/preflight/configuration descriptors and cross-link; and every source
+file's size and SHA-256. It then derives the complete allowed row sequence from
+authenticated HDF5 labels and matches the registered allowed/excluded counts,
+ordered index hashes, and allowed-target-set hash before any expression value
+can be read. Every later mini-batch binds both its source-row indices and the
+labels read from the same authenticated descriptor. `hepg2.h5` is explicitly
+evaluation-only even though the preflight audits its rows.
+
+`scripts/train_scdfm_v7_portable.py` is a Phase-1 adapter smoke, not the compact
+trainer. It opens the full data gate before normalization, feature selection,
+or model construction, then uses real authorized Jurkat cells and exact
+Arc-supplied 5,120-dimensional target features in a small CFM/MMD optimizer
+step. CPU validation and one-H100 job `862098` both produced identical
+same-seed restart replicas. The H100 job completed on `c0002` in 19 seconds
+with exit code `0:0` and empty stderr. It authenticated 189,593 allowed and
+73,363 excluded Jurkat rows; the allowed-row sequence SHA-256 is
+`d5eb4c0acfcbbc6d5f5fcba7586cbf49d0b66db2d620a5939d5a07ec25d9ae74`.
+Its two model-state hashes were both
+`e6d33e1431c49acbadd909df2e769a371266ccef1c4828098ffcc6c0f9b5c685`.
+The hardened launcher additionally requires an independently supplied clean
+Git commit and launcher SHA-256. The trainer authenticates its own and the gate
+consumer's registered bytes before opening the data gate, binds the launcher
+for H100 runs, and re-hashes every registered code file after the optimizer
+step. The clean rerun documented below supersedes job `862098` as current-code
+evidence.
+
+This closes only the portable manifest/preflight consumer blocker. The adapter
+does not consume the frozen STATE anchor, perform a whole-cluster inner
+checkpoint-selection split, train the compact model, evaluate biological
+quality, render counts, or create a VCC submission. Those omissions remain
+fail-closed rather than being inferred from the successful smoke.
 
 CPU Slurm job `862052` completed the four-stage audit on node `c0014` in
 14 minutes 21 seconds with exit code `0:0` and empty stderr. The sealed
@@ -302,7 +343,9 @@ hashes. The partition holds 300 scored targets and 35,348 treated cells across
 11 complete ESM2 clusters while globally excluding 741 targets and 73,363
 cells from every registered fitting scope. No expression-matrix value was
 read during selection or preflight. The sanitized receipt is
-`results/scdfm_v7/jurkat_gate1c_audit.json`.
+`results/scdfm_v7/jurkat_gate1c_audit.json`. That immutable historical receipt
+correctly records `portable_trainer_integration_implemented=false` because it
+predates the separate activation layer; it is not rewritten retroactively.
 
 Arc's exact 19,790-by-5,120 target-feature artifact is structurally
 authenticated, but its release does not identify the upstream model revision,
@@ -338,8 +381,9 @@ protein-sequence source, gene-to-protein mapping and digest, and pooling rule
 are explicitly `UNRESOLVED_REQUIRED`. Consequently Gate 1b remains incomplete
 and may not be enabled by replacing strings or booleans. This does not prevent
 Gate 1c from using Arc's registered opaque feature bytes for split construction
-and target conditioning. Training is still forbidden for an independent
-reason: no portable trainer yet consumes the hash-pinned manifest and preflight.
+and target conditioning. The portable adapter now consumes the hash-pinned
+manifest and preflight, but upstream ESM2 provenance and the compact-training
+contract remain unresolved, so production training is still forbidden.
 
 The bytes supplied inside Arc's STATE support archive have nevertheless been
 authenticated as an **opaque derived feature artifact**. The registered outer
@@ -551,6 +595,33 @@ sbatch slurm/h100_scdfm_contract_smoke.sbatch
 
 sbatch --test-only slurm/h100_scdfm_released_checkpoint_smoke.sbatch
 sbatch slurm/h100_scdfm_released_checkpoint_smoke.sbatch
+
+# Verify that the tracked lock is an exact deterministic derivation.
+portable_check_dir="$(mktemp -d)"
+.venv-state/bin/python scripts/build_scdfm_portable_hash_lock.py \
+  --output "$portable_check_dir/portable_training_gate_lock.json"
+cmp "$portable_check_dir/portable_training_gate_lock.json" \
+  artifacts/scdfm/v7/training/portable_training_gate_lock.json
+
+# Authenticate the complete real row axis without reading X.
+.venv-state/bin/python scripts/train_scdfm_v7_portable.py \
+  --expected-lock-sha256 \
+    f9c5b8675a1a46c561c056574009722d1faa4bfaf8b4e12e7d7017d3c5a9628d \
+  --expected-trainer-sha256 \
+    eae081058bec960f012fd2116e9410ff62c9016264d9f82e9f7f6dd80c6bc5dc \
+  --expected-gate-consumer-sha256 \
+    9e884bb50eec691dc973c811341f1e636358124514b8a696915c3fe147b9fa13 \
+  --output-json "$portable_check_dir/scdfm_v7_portable_preflight.json" \
+  --preflight-only
+
+vcc_v7_commit="$(git rev-parse HEAD)"
+vcc_v7_launcher_sha256="$(sha256sum \
+  slurm/h100_train_scdfm_v7_portable_smoke.sbatch | cut -d ' ' -f1)"
+vcc_v7_exports="ALL,VCC_EXPECTED_GIT_COMMIT=$vcc_v7_commit,VCC_EXPECTED_LAUNCHER_SHA256=$vcc_v7_launcher_sha256"
+sbatch --test-only --export="$vcc_v7_exports" \
+  slurm/h100_train_scdfm_v7_portable_smoke.sbatch
+sbatch --export="$vcc_v7_exports" \
+  slurm/h100_train_scdfm_v7_portable_smoke.sbatch
 ```
 
 Once a flow proposal exists, the distribution-only factor arms are composed

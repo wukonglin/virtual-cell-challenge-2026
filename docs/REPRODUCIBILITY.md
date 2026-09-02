@@ -81,6 +81,66 @@ export VCC_CLI="$VCC_PROJECT_DIR/.venv-vcc/bin/vcc"
 
 Slurm account, partition, QoS, memory, and time directives are site-specific and may be overridden with `sbatch` flags.
 
+## V7 portable training gate
+
+The V7 split-audit configuration is immutable because the sealed manifest and
+preflight bind its complete byte identity. Do not flip its historical
+`training_ready` fields. The separately tracked portable lock activates only
+the Phase-1 trainer adapter and independently binds the configuration,
+manifest, preflight, source-row hashes, and dataset roles.
+
+Verify that a fresh deterministic lock is byte identical without overwriting
+the tracked trust root:
+
+```bash
+portable_check_dir="$(mktemp -d)"
+.venv-state/bin/python scripts/build_scdfm_portable_hash_lock.py \
+  --output "$portable_check_dir/portable_training_gate_lock.json"
+
+cmp "$portable_check_dir/portable_training_gate_lock.json" \
+  artifacts/scdfm/v7/training/portable_training_gate_lock.json
+
+sha256sum artifacts/scdfm/v7/training/portable_training_gate_lock.json
+# f9c5b8675a1a46c561c056574009722d1faa4bfaf8b4e12e7d7017d3c5a9628d
+```
+
+Run the real metadata-only consumer before requesting a GPU. It authenticates
+the full source file and reconstructs all allowed rows, but does not read `X`,
+load target features, or construct a model:
+
+```bash
+.venv-state/bin/python scripts/train_scdfm_v7_portable.py \
+  --expected-lock-sha256 \
+    f9c5b8675a1a46c561c056574009722d1faa4bfaf8b4e12e7d7017d3c5a9628d \
+  --expected-trainer-sha256 \
+    eae081058bec960f012fd2116e9410ff62c9016264d9f82e9f7f6dd80c6bc5dc \
+  --expected-gate-consumer-sha256 \
+    9e884bb50eec691dc973c811341f1e636358124514b8a696915c3fe147b9fa13 \
+  --output-json "$portable_check_dir/scdfm_v7_portable_preflight.json" \
+  --preflight-only
+```
+
+Then run the single-H100 adapter smoke:
+
+```bash
+vcc_v7_commit="$(git rev-parse HEAD)"
+vcc_v7_launcher_sha256="$(sha256sum \
+  slurm/h100_train_scdfm_v7_portable_smoke.sbatch | cut -d ' ' -f1)"
+vcc_v7_exports="ALL,VCC_EXPECTED_GIT_COMMIT=$vcc_v7_commit,VCC_EXPECTED_LAUNCHER_SHA256=$vcc_v7_launcher_sha256"
+sbatch --test-only --export="$vcc_v7_exports" \
+  slurm/h100_train_scdfm_v7_portable_smoke.sbatch
+sbatch --export="$vcc_v7_exports" \
+  slurm/h100_train_scdfm_v7_portable_smoke.sbatch
+```
+
+The smoke uses real authorized Jurkat cells and authenticated continuous target
+features, performs two deterministic optimizer replicas, and refuses to create
+a challenge prediction. The launcher also refuses a dirty worktree or a Git
+commit different from the independently supplied value, while the trainer
+checks its own, the gate consumer's, and the launcher's expected SHA-256 before
+data access and again after execution. It is not compact biological training,
+model-quality evidence, or authorization to submit.
+
 ## Stage 1: audit controls
 
 ```bash

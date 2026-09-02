@@ -31,6 +31,17 @@ Pengpeng/
 # Generated model and submission artifacts
 artifacts/*
 !artifacts/.gitkeep
+!artifacts/scdfm/
+artifacts/scdfm/*
+!artifacts/scdfm/v7/
+artifacts/scdfm/v7/*
+!artifacts/scdfm/v7/splits/
+artifacts/scdfm/v7/splits/*
+!artifacts/scdfm/v7/splits/jurkat_non_harm.json
+!artifacts/scdfm/v7/training/
+artifacts/scdfm/v7/training/*
+!artifacts/scdfm/v7/training/jurkat_training_preflight.json
+!artifacts/scdfm/v7/training/portable_training_gate_lock.json
 logs/*
 !logs/.gitkeep
 outputs/

@@ -1,0 +1,170 @@
+{
+  "canonical_json_encoding": "python-json-indent2-sort-keys-utf8-lf-final-newline",
+  "consumer_contract": {
+    "absolute_paths_host_metadata_and_timestamps_embedded": false,
+    "activation_scope": "phase1_portable_trainer_adapter_smoke",
+    "compact_model_training_ready": false,
+    "complete_allowed_row_hash_required_before_any_protected_stage": true,
+    "evaluation_only_sources_cannot_enter_fit_stages": true,
+    "every_batch_must_bind_source_indices_and_labels": true,
+    "manifest_and_preflight_are_repository_tracked": true,
+    "official_submission_allowed": false,
+    "trainer_derives_rows_from_authenticated_labels_only": true,
+    "trainer_must_not_import_or_run_kmeans": true,
+    "trainer_must_verify_expected_lock_sha256": true
+  },
+  "datasets": [
+    {
+      "allowed_row_count": 206492,
+      "allowed_source_row_indices_sha256": "c1e6f8ff2bf3297ad9841e0cf87a6664311d075ba6a9046f9ec4f85ed2479e8e",
+      "allowed_target_list_sha256": "e67a9618082a3808c1e1a04bba117f4a6076dcdd775ec1711449b5f6eef8a86b",
+      "dataset": "competition_train.h5",
+      "excluded_row_count": 14781,
+      "excluded_source_row_indices_sha256": "3a982ca6ed09940a78e434284b4dfeed754aca87d6ce29942ac0c3cbe6e6f4a3",
+      "role": "training",
+      "source": {
+        "filename": "competition_train.h5",
+        "row_count": 221273,
+        "sha256": "3dc850b767553648b91bf0b21a0e753be3010f36cf0cf3e98f6ef616c75aa847",
+        "size_bytes": 15482098599
+      }
+    },
+    {
+      "allowed_row_count": 8353,
+      "allowed_source_row_indices_sha256": "7f4bd4adfa3633ca3ff5132fbab21eb4327bb72a5ced0584f3ebed95ed23d92f",
+      "allowed_target_list_sha256": "d939b78295f0d3f8239b196a6f2a4fd0967deae10893dcd70d195a1fa6707f10",
+      "dataset": "hepg2.h5",
+      "excluded_row_count": 1033,
+      "excluded_source_row_indices_sha256": "e1676c82b2fc669cee2cb8f21aa04477b374e47c7201e4fa96d20501b426764b",
+      "role": "evaluation_only",
+      "source": {
+        "filename": "hepg2.h5",
+        "row_count": 9386,
+        "sha256": "a6c508793d96eeba7977f9f64de1dba1405db617f7b8558f248ba95c718d2f65",
+        "size_bytes": 680426532
+      }
+    },
+    {
+      "allowed_row_count": 19313,
+      "allowed_source_row_indices_sha256": "2b444ee370cdd18218f46d6336260bd20f50bdae4a87abc41cbafb30212fa3e2",
+      "allowed_target_list_sha256": "d939b78295f0d3f8239b196a6f2a4fd0967deae10893dcd70d195a1fa6707f10",
+      "dataset": "jurkat.h5",
+      "excluded_row_count": 2099,
+      "excluded_source_row_indices_sha256": "4ff6d5314e391d3c2b3a87dca0666f2467d43f60713cfcecfa69bae3a8f54bbb",
+      "role": "training",
+      "source": {
+        "filename": "jurkat.h5",
+        "row_count": 21412,
+        "sha256": "4d23ea34563e7875e75a9207f986fe78a9789b329a0ce5599aa79cccb9215fe7",
+        "size_bytes": 1551183536
+      }
+    },
+    {
+      "allowed_row_count": 16315,
+      "allowed_source_row_indices_sha256": "d301a8fd4dbab910dea710e6e14d9180e89825ea35240b437db716d4ae448bc5",
+      "allowed_target_list_sha256": "cc954dd7b9b414779f02fa0d1aba22c44175d65a041cd5c6225cd3ae45d77a56",
+      "dataset": "k562.h5",
+      "excluded_row_count": 2150,
+      "excluded_source_row_indices_sha256": "d6e973b8947f005435c99072f1d182b3e684afe90c74bc59d29c477c2fc4a1fa",
+      "role": "training",
+      "source": {
+        "filename": "k562.h5",
+        "row_count": 18465,
+        "sha256": "ae318acc14bbf44752088352dcc2853fbc6a633184fe71a55cd6848ca431537c",
+        "size_bytes": 1337939102
+      }
+    },
+    {
+      "allowed_row_count": 106294,
+      "allowed_source_row_indices_sha256": "cace55848fe7a259cfcfd408d66d8ff619c1c90a4e1308e1f0518578a93e6211",
+      "allowed_target_list_sha256": "dbb663bdd919a0d6e264b2d578a6f4725120212abb80d6b1193cf8ddcfbf918a",
+      "dataset": "k562_gwps.h5",
+      "excluded_row_count": 5311,
+      "excluded_source_row_indices_sha256": "c26a25b300ad4ddb7b0e8b2702245c52755c12f1c90f544c7b5557db01f208a3",
+      "role": "training",
+      "source": {
+        "filename": "k562_gwps.h5",
+        "row_count": 111605,
+        "sha256": "b16f446d6aa8ca6f2bfecb65bb4a716f7cfa7dabfb5e876a7fb349ba5d0aa38b",
+        "size_bytes": 8083142186
+      }
+    },
+    {
+      "allowed_row_count": 189593,
+      "allowed_source_row_indices_sha256": "d5eb4c0acfcbbc6d5f5fcba7586cbf49d0b66db2d620a5939d5a07ec25d9ae74",
+      "allowed_target_list_sha256": "9ffda4cfd579108df32d53505c64ccc02f55f4cb588e6649cff372e31ed01e42",
+      "dataset": "nadig_jurkat",
+      "excluded_row_count": 73363,
+      "excluded_source_row_indices_sha256": "67a241b08b2da3b5bcf404a1b12e5ffee6d1fd7de634e000a1fd70d7994bae38",
+      "role": "training",
+      "source": {
+        "filename": "GSE264667_jurkat_raw_singlecell_01.h5ad",
+        "row_count": 262956,
+        "sha256": "ffbe15f2c8f7ffcfd7b0ba9e6937d4ebc2d03b0179fa8234648a59bcb82c04a3",
+        "size_bytes": 9366490264
+      }
+    },
+    {
+      "allowed_row_count": 20112,
+      "allowed_source_row_indices_sha256": "3c7096bff8296deeebc947db8453ec4a21491a0c2a1e621338f1f80676710b29",
+      "allowed_target_list_sha256": "d939b78295f0d3f8239b196a6f2a4fd0967deae10893dcd70d195a1fa6707f10",
+      "dataset": "rpe1.h5",
+      "excluded_row_count": 2205,
+      "excluded_source_row_indices_sha256": "36727fc3f1ed96f5ec8c5bf0a19ec26309aa840ecf650b63767db283e8f01f86",
+      "role": "training",
+      "source": {
+        "filename": "rpe1.h5",
+        "row_count": 22317,
+        "sha256": "51ebd598c3f6f171e4c0668fa3539e943aec6b77514aa1061773e4297696dff9",
+        "size_bytes": 1616886534
+      }
+    }
+  ],
+  "firewall": {
+    "global_exclusion_target_count": 741,
+    "global_exclusion_target_list_sha256": "2f6f4c094779ab1f99a01ddb414fd1d5e5ad74fef927a462dc8370d0c845811b",
+    "protected_stages": [
+      "model_fit",
+      "checkpoint_selection",
+      "normalization_fit",
+      "feature_selection",
+      "graph_construction",
+      "decoder_fit",
+      "hyperparameter_selection"
+    ]
+  },
+  "hash_algorithm": "sha256",
+  "manifest_preflight_cross_link": {
+    "filename": "jurkat_non_harm.json",
+    "sha256": "3114e59b5430d140cfeeaccd8b2f6974ceb1c14ba254ec41597057ce7a70c439",
+    "size_bytes": 260829
+  },
+  "repository_artifacts": {
+    "manifest": {
+      "canonical_payload_sha256": "6f80eb7ebc2c6577cf90c35c405abc3199841be025ff2f4509374de18e75951c",
+      "filename": "jurkat_non_harm.json",
+      "repository_path": "artifacts/scdfm/v7/splits/jurkat_non_harm.json",
+      "schema": "vcc-scdfm-jurkat-non-harm-manifest-v1",
+      "sha256": "3114e59b5430d140cfeeaccd8b2f6974ceb1c14ba254ec41597057ce7a70c439",
+      "size_bytes": 260829,
+      "status": "sealed"
+    },
+    "preflight": {
+      "canonical_payload_sha256": "15332d4f24005efd3166f752f8fa97f42e4582895542a8e16904504fbc4acdc8",
+      "filename": "jurkat_training_preflight.json",
+      "repository_path": "artifacts/scdfm/v7/training/jurkat_training_preflight.json",
+      "schema": "vcc-scdfm-jurkat-training-preflight-v1",
+      "sha256": "b5dfc61625625e8b70f126e9eb563f12f62ec629e8a138ef6045688c0f233ba1",
+      "size_bytes": 8271,
+      "status": "passed"
+    },
+    "split_configuration": {
+      "filename": "vcc2026_v7_gamma1.toml",
+      "repository_path": "configs/scdfm/vcc2026_v7_gamma1.toml",
+      "sha256": "f4f20f3b86002d74e7f3d44837eedd5c7dd270dc3f9ab5adae052484fad3bf6a",
+      "size_bytes": 11883
+    }
+  },
+  "schema": "vcc-scdfm-portable-training-hash-lock-v1",
+  "status": "locked"
+}
