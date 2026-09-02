@@ -45,6 +45,8 @@ esac
 readonly PROJECT_DIR="${VCC_PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$(pwd)}}"
 readonly PYTHON_BIN="$PROJECT_DIR/.venv-state/bin/python"
 readonly MODEL_DIR="$PROJECT_DIR/artifacts/state_runs/state_sm_20k_v0"
+readonly CHECKPOINT_EXPECTED_SHA256="e407e51855792d0dc85483a977f63497d9ac9a6893db360d840c7d9ce556780d"
+readonly PERTURBATION_MAP_EXPECTED_SHA256="6ab08c62dd117012b386051a9f375505abcd17b88ed76f0ad232199624291170"
 readonly PUBLIC_ROOT="${VCC_PUBLIC_V6_ROOT:-$PROJECT_DIR/artifacts/public_v6}"
 readonly GENERATOR_SCRIPT="$PROJECT_DIR/scripts/generate_native_state_anchor_counts.py"
 readonly DIRECT_COUNTS_HELPER="$PROJECT_DIR/scripts/generate_state_direct_counts.py"
@@ -99,7 +101,7 @@ for required_path in \
   dataset/public_v51/split_manifest.csv \
   dataset/public_v51/split_manifest.json \
   dataset/state_support/extracted/gene_names.csv \
-  "$MODEL_DIR/checkpoints/selected.ckpt" \
+  "$MODEL_DIR/checkpoints/step16000.ckpt" \
   "$MODEL_DIR/checkpoints/selected_checkpoint.json" \
   "$PERTURBATION_MAP" \
   "$VAR_DIMS" \
@@ -148,7 +150,7 @@ export PYTHONDONTWRITEBYTECODE=1
   --panel-csv dataset/public_v51/split_manifest.csv \
   --residual-npz "$VCC_RESIDUAL_NPZ" \
   --residual-json "$VCC_RESIDUAL_JSON" \
-  --checkpoint "$MODEL_DIR/checkpoints/selected.ckpt" \
+  --checkpoint "$MODEL_DIR/checkpoints/step16000.ckpt" \
   --selection-json "$MODEL_DIR/checkpoints/selected_checkpoint.json" \
   --support-genes dataset/state_support/extracted/gene_names.csv \
   --generator-script "$GENERATOR_SCRIPT" \
@@ -171,7 +173,9 @@ nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv,nohead
   --panel-csv dataset/public_v51/split_manifest.csv \
   --context "$VCC_CONTEXT" \
   --model-dir "$MODEL_DIR" \
-  --checkpoint selected.ckpt \
+  --checkpoint step16000.ckpt \
+  --checkpoint-expected-sha256 "$CHECKPOINT_EXPECTED_SHA256" \
+  --perturbation-map-expected-sha256 "$PERTURBATION_MAP_EXPECTED_SHA256" \
   --selection-json "$MODEL_DIR/checkpoints/selected_checkpoint.json" \
   --support-genes dataset/state_support/extracted/gene_names.csv \
   --output-h5ad "$OUTPUT_H5AD" \

@@ -32,6 +32,13 @@ from scipy import sparse
 from sklearn.cluster import KMeans
 import torch
 
+from authenticate_esm2_target_features import (
+    OFFICIAL_SPEC as OFFICIAL_ESM2_SPEC,
+    TargetFeatureAuthenticationError,
+    load_authenticated_arc_feature_map,
+    load_restricted_tensor_mapping,
+)
+
 
 CONTEXTS = ("A", "B", "C")
 SOURCE_GROUP = {
@@ -57,6 +64,15 @@ def parse_args() -> argparse.Namespace:
         "--esm2",
         type=Path,
         default=Path("dataset/state_support/extracted/ESM2_pert_features.pt"),
+    )
+    parser.add_argument(
+        "--esm2-expected-sha256",
+        default=None,
+        help=(
+            "Expected SHA-256 for a non-default ESM2 feature map. The exact "
+            "registered Arc artifact digest is enforced automatically for "
+            "the default filename."
+        ),
     )
     parser.add_argument(
         "--controls-dir", type=Path, default=Path("dataset/controls")
@@ -222,10 +238,43 @@ def load_esm_features(
     path: Path,
     public_targets: list[str],
     query_targets: list[str],
-) -> tuple[np.ndarray, np.ndarray, list[str]]:
-    embeddings = torch.load(path, map_location="cpu", weights_only=False)
-    if not isinstance(embeddings, dict):
-        raise TypeError("ESM2 feature file must contain a gene->tensor dictionary")
+    *,
+    expected_sha256: str | None = None,
+) -> tuple[np.ndarray, np.ndarray, list[str], dict[str, Any]]:
+    if expected_sha256 is None:
+        if path.name != OFFICIAL_ESM2_SPEC.extracted_filename:
+            raise ValueError(
+                "A non-default ESM2 map requires --esm2-expected-sha256"
+            )
+        embeddings, load_descriptor = load_authenticated_arc_feature_map(path)
+    else:
+        try:
+            payload, load_descriptor = load_restricted_tensor_mapping(
+                path,
+                label="ESM2 feature map",
+                expected_sha256=expected_sha256,
+            )
+        except TargetFeatureAuthenticationError as error:
+            raise ValueError(str(error)) from error
+        if type(payload) is not dict:
+            raise TypeError("ESM2 feature file must contain a plain gene->tensor dict")
+        embeddings = payload
+
+    if not all(isinstance(key, str) and key for key in embeddings):
+        raise TypeError("Every ESM2 feature key must be a non-empty string")
+    dimensions: set[int] = set()
+    for key, value in embeddings.items():
+        if type(value) is not torch.Tensor:
+            raise TypeError(f"ESM2 feature value must be a plain tensor: {key}")
+        if value.device.type != "cpu" or value.layout != torch.strided:
+            raise TypeError(f"ESM2 feature must be a CPU strided tensor: {key}")
+        if value.dtype != torch.float32 or value.ndim != 1:
+            raise TypeError(f"ESM2 feature must be a rank-one float32 tensor: {key}")
+        if not bool(torch.isfinite(value).all()) or not bool(torch.count_nonzero(value)):
+            raise ValueError(f"ESM2 feature must be finite and nonzero: {key}")
+        dimensions.add(int(value.numel()))
+    if dimensions != {OFFICIAL_ESM2_SPEC.embedding_dimension}:
+        raise ValueError(f"Unexpected ESM2 feature dimensions: {sorted(dimensions)}")
 
     missing: list[str] = []
 
@@ -252,7 +301,12 @@ def load_esm_features(
     query = (query - mean) / std
     public /= np.maximum(np.linalg.norm(public, axis=1, keepdims=True), 1e-8)
     query /= np.maximum(np.linalg.norm(query, axis=1, keepdims=True), 1e-8)
-    return public.astype(np.float32), query.astype(np.float32), sorted(set(missing))
+    return (
+        public.astype(np.float32),
+        query.astype(np.float32),
+        sorted(set(missing)),
+        load_descriptor,
+    )
 
 
 def fit_source_latents(
@@ -723,8 +777,11 @@ def main() -> None:
     ) = fit_source_latents(
         sample_scores, sample_targets, sample_groups, sample_quality
     )
-    public_features, query_features, missing_esm = load_esm_features(
-        args.esm2, public_targets, challenge_targets
+    public_features, query_features, missing_esm, esm2_load_descriptor = load_esm_features(
+        args.esm2,
+        public_targets,
+        challenge_targets,
+        expected_sha256=args.esm2_expected_sha256,
     )
     ridge, target_scale, transfer_method, cv_report = target_cluster_cv(
         public_features, global_scores, target_weights, args.seed
@@ -1024,6 +1081,7 @@ def main() -> None:
             for q in (0.0, 0.1, 0.5, 0.9, 1.0)
         },
         "missing_esm_features": missing_esm,
+        "esm2_artifact_load": esm2_load_descriptor,
         "selected_effects_per_group": {
             "min": int(selected_counts.min()),
             "median": float(np.median(selected_counts)),

@@ -12,14 +12,16 @@ import argparse
 import hashlib
 import inspect
 import json
+import math
 import os
-import pickle
 import platform
 import random
+import re
 import socket
 import subprocess
 import sys
 import time
+from collections.abc import Mapping
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Iterable
@@ -29,6 +31,13 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 import torch
+import yaml
+
+from authenticate_esm2_target_features import (
+    TargetFeatureAuthenticationError,
+    _open_regular_read_only,
+    load_restricted_tensor_mapping,
+)
 
 
 CONTEXTS = ("A", "B", "C")
@@ -40,6 +49,97 @@ EXPECTED_CURRENT_ONLY_GENES = 456
 EXPECTED_TARGETS = 300
 EXPECTED_PERT_DIM = 5_120
 EFFECT_SPACE = "log1p-target-sum-normalized-arithmetic-pseudobulk-delta"
+MAX_SAFE_METADATA_BYTES = 4 << 20
+MAX_CHECKPOINT_OBJECTS = 100_000
+MAX_CHECKPOINT_TENSORS = 10_000
+MAX_CHECKPOINT_TENSOR_ELEMENTS = 1_000_000_000
+SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
+
+LIGHTNING_CHECKPOINT_KEYS = frozenset(
+    {
+        "callbacks",
+        "epoch",
+        "global_step",
+        "hparams_name",
+        "hyper_parameters",
+        "loops",
+        "lr_schedulers",
+        "optimizer_states",
+        "pytorch-lightning_version",
+        "state_dict",
+    }
+)
+
+# These are the plain-data fields emitted by the pinned STATE runtime used by
+# this repository.  Unknown fields fail closed instead of being forwarded into
+# a model constructor with ``**kwargs`` semantics.
+STATE_HPARAMETER_KEYS = frozenset(
+    {
+        "basal_mapping_strategy",
+        "batch_dim",
+        "batch_encoder",
+        "batch_size",
+        "blur",
+        "cell_set_len",
+        "ckpt_every_n_steps",
+        "confidence_head",
+        "control_pert",
+        "cumulative_flops_use_backward",
+        "decoder_cfg",
+        "devices",
+        "distributional_loss",
+        "dropout",
+        "embed_key",
+        "finetune_vci_decoder",
+        "freeze_pert_backbone",
+        "gene_decoder_bool",
+        "gene_dim",
+        "gene_names",
+        "gradient_accumulation_steps",
+        "gradient_clip_val",
+        "hidden_dim",
+        "hvg_dim",
+        "init_from",
+        "input_dim",
+        "lora",
+        "loss",
+        "loss_fn",
+        "lr",
+        "mask_attn",
+        "max_steps",
+        "mfu_kwargs",
+        "mmd_num_chunks",
+        "n_decoder_layers",
+        "n_encoder_layers",
+        "output_dim",
+        "output_space",
+        "pert_dim",
+        "predict_residual",
+        "randomize_mmd_chunks",
+        "residual_decoder",
+        "softplus",
+        "strategy",
+        "train_seed",
+        "transformer_backbone_key",
+        "transformer_backbone_kwargs",
+        "transformer_decoder",
+        "use_basal_projection",
+        "use_effect_gating_token",
+        "use_mfu",
+        "val_freq",
+        "wandb_track",
+        "weight_decay",
+    }
+)
+
+
+def parse_expected_sha256(value: str) -> str:
+    """Return one canonical pre-registered SHA-256 or reject the CLI value."""
+
+    normalized = value.strip().lower()
+    if SHA256_PATTERN.fullmatch(normalized) is None:
+        raise argparse.ArgumentTypeError("expected exactly 64 hexadecimal SHA-256 characters")
+    return normalized
 
 
 def parse_args() -> argparse.Namespace:
@@ -50,13 +150,34 @@ def parse_args() -> argparse.Namespace:
         "--model-dir",
         type=Path,
         required=True,
-        help="STATE run directory containing pert_onehot_map.pt and var_dims.pkl.",
+        help=(
+            "STATE run directory containing pert_onehot_map.pt, a checkpoint, "
+            "and version_0/hparams.yaml. Legacy var_dims.pkl is never deserialized."
+        ),
     )
     parser.add_argument(
         "--checkpoint",
         type=Path,
         default=Path("best.ckpt"),
         help="Checkpoint path, or a filename resolved below MODEL_DIR/checkpoints.",
+    )
+    parser.add_argument(
+        "--checkpoint-expected-sha256",
+        type=parse_expected_sha256,
+        required=True,
+        help=(
+            "Required pre-registered SHA-256 for the STATE checkpoint. The "
+            "checkpoint is always hashed before and after restricted weights-only load."
+        ),
+    )
+    parser.add_argument(
+        "--perturbation-map-expected-sha256",
+        type=parse_expected_sha256,
+        required=True,
+        help=(
+            "Required pre-registered SHA-256 for pert_onehot_map.pt. The map "
+            "is always hashed before and after restricted weights-only load."
+        ),
     )
     parser.add_argument(
         "--controls-dir", type=Path, default=Path("dataset/controls")
@@ -236,7 +357,9 @@ def resolve_checkpoint(model_dir: Path, checkpoint_arg: Path) -> Path:
         )
     for candidate in candidates:
         if candidate.is_file():
-            return candidate.resolve()
+            # Preserve the final path component so the authenticated loader can
+            # reject a symbolic link with O_NOFOLLOW instead of normalizing it.
+            return Path(os.path.abspath(os.fspath(candidate.expanduser())))
     rendered = ", ".join(str(path) for path in candidates)
     raise FileNotFoundError(f"Checkpoint not found; tried: {rendered}")
 
@@ -253,30 +376,214 @@ def git_commit(path: Path) -> str | None:
         return None
 
 
-def load_var_dims(path: Path, support_genes: list[str]) -> dict[str, Any]:
-    with path.open("rb") as handle:
-        var_dims = pickle.load(handle)
-    require(isinstance(var_dims, dict), f"Expected a dictionary in {path}")
+class _UniqueSafeLoader(yaml.SafeLoader):
+    """PyYAML safe loader that also rejects duplicate mapping keys."""
+
+
+def _construct_unique_mapping(
+    loader: _UniqueSafeLoader,
+    node: yaml.MappingNode,
+    deep: bool = False,
+) -> dict[str, Any]:
+    loader.flatten_mapping(node)
+    result: dict[str, Any] = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        require(type(key) is str, "Safe metadata mapping keys must be strings")
+        require(key not in result, f"Duplicate safe metadata key: {key}")
+        result[key] = loader.construct_object(value_node, deep=deep)
+    return result
+
+
+_UniqueSafeLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _construct_unique_mapping,
+)
+
+
+def _validate_plain_metadata_graph(value: object, label: str) -> None:
+    """Accept only a bounded acyclic graph of plain JSON-like values."""
+
+    seen: set[int] = set()
+    objects = 0
+
+    def visit(current: object, depth: int) -> None:
+        nonlocal objects
+        objects += 1
+        require(objects <= 200_000, f"{label} contains too many objects")
+        require(depth <= 16, f"{label} nesting is too deep")
+        if current is None or type(current) is bool:
+            return
+        if type(current) is int:
+            require(abs(current) <= 2**63 - 1, f"{label} integer is out of range")
+            return
+        if type(current) is float:
+            require(math.isfinite(current), f"{label} contains a non-finite float")
+            return
+        if type(current) is str:
+            require(len(current.encode("utf-8")) <= 1 << 20, f"{label} string is too long")
+            return
+        require(type(current) in (dict, list), f"{label} contains an unsafe value type")
+        identity = id(current)
+        require(identity not in seen, f"{label} contains an alias or cycle")
+        seen.add(identity)
+        if type(current) is dict:
+            require(len(current) <= 10_000, f"{label} mapping is too large")
+            for key, item in current.items():
+                require(type(key) is str and bool(key), f"{label} has a non-string key")
+                visit(item, depth + 1)
+        else:
+            require(len(current) <= 100_000, f"{label} list is too large")
+            for item in current:
+                visit(item, depth + 1)
+
+    visit(value, 0)
+
+
+def _safe_var_dims_source(path: Path) -> Path:
+    """Resolve a legacy name to an explicit non-pickle metadata sidecar."""
+
+    path = Path(path)
+    if path.suffix.lower() in {".yaml", ".yml", ".json"}:
+        return path
+    if path.suffix.lower() not in {".pkl", ".pickle"}:
+        raise RuntimeError(
+            "STATE dimension metadata must be JSON or YAML; unsafe serialized formats are rejected"
+        )
+    candidates = (
+        path.with_name("var_dims.json"),
+        path.parent / "version_0" / "hparams.yaml",
+    )
+    present = [candidate for candidate in candidates if candidate.exists() or candidate.is_symlink()]
+    require(
+        len(present) == 1,
+        "Legacy var_dims pickle is never deserialized; provide exactly one safe sidecar at "
+        f"{candidates[0]} or {candidates[1]}",
+    )
+    return present[0]
+
+
+def load_var_dims(
+    path: Path,
+    support_genes: list[str],
+    *,
+    return_descriptor: bool = False,
+) -> dict[str, Any] | tuple[dict[str, Any], dict[str, Any]]:
+    """Load dimensions from strict JSON/YAML while refusing legacy pickle."""
+
+    source = _safe_var_dims_source(path)
+    try:
+        handle, opened = _open_regular_read_only(source, "STATE safe dimension metadata")
+    except TargetFeatureAuthenticationError as error:
+        raise RuntimeError(str(error)) from error
+    with handle:
+        require(opened.st_size <= MAX_SAFE_METADATA_BYTES, "STATE metadata file is too large")
+        raw = handle.read()
+        after = os.fstat(handle.fileno())
+        require(
+            (opened.st_dev, opened.st_ino, opened.st_size, opened.st_mtime_ns, opened.st_ctime_ns)
+            == (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns),
+            "STATE dimension metadata changed while being read",
+        )
+    try:
+        text = raw.decode("utf-8")
+        if source.suffix.lower() == ".json":
+            def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+                result: dict[str, Any] = {}
+                for key, value in pairs:
+                    require(key not in result, f"Duplicate safe metadata key: {key}")
+                    result[key] = value
+                return result
+
+            metadata = json.loads(text, object_pairs_hook=unique_object)
+            metadata_format = "strict-json"
+        else:
+            metadata = yaml.load(text, Loader=_UniqueSafeLoader)
+            metadata_format = "safe-yaml-no-duplicate-keys"
+    except RuntimeError:
+        raise
+    except (UnicodeDecodeError, json.JSONDecodeError, yaml.YAMLError) as error:
+        raise RuntimeError(f"Invalid safe STATE dimension metadata: {error}") from error
+
+    _validate_plain_metadata_graph(metadata, "STATE dimension metadata")
+    require(type(metadata) is dict, "STATE dimension metadata root must be a plain mapping")
     required = ("gene_names", "input_dim", "output_dim", "pert_dim")
-    missing = [key for key in required if key not in var_dims]
-    require(not missing, f"var_dims.pkl lacks keys: {missing}")
-    checkpoint_genes = [str(gene) for gene in var_dims["gene_names"]]
+    missing = [key for key in required if key not in metadata]
+    require(not missing, f"Safe STATE dimension metadata lacks keys: {missing}")
+    checkpoint_genes = metadata["gene_names"]
+    require(
+        type(checkpoint_genes) is list
+        and all(type(gene) is str and bool(gene) for gene in checkpoint_genes),
+        "Safe STATE gene_names must be a list of non-empty strings",
+    )
     require(
         checkpoint_genes == support_genes,
-        "var_dims.pkl gene_names do not exactly match the support gene axis",
+        "Safe STATE gene_names do not exactly match the support gene axis",
     )
-    require(int(var_dims["input_dim"]) == len(support_genes), "Unexpected STATE input_dim")
-    require(int(var_dims["output_dim"]) == len(support_genes), "Unexpected STATE output_dim")
-    require(int(var_dims["pert_dim"]) == EXPECTED_PERT_DIM, "Unexpected STATE pert_dim")
-    return var_dims
+    for key, expected in (
+        ("input_dim", len(support_genes)),
+        ("output_dim", len(support_genes)),
+        ("pert_dim", EXPECTED_PERT_DIM),
+    ):
+        require(type(metadata[key]) is int, f"Safe STATE {key} must be an integer")
+        require(metadata[key] == expected, f"Unexpected STATE {key}")
+    descriptor = {
+        "local_filename": source.name,
+        "size_bytes": opened.st_size,
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "format": metadata_format,
+        "legacy_pickle_requested": Path(path).suffix.lower() in {".pkl", ".pickle"},
+        "legacy_pickle_deserialized": False,
+        "ancestor_and_final_symlinks_rejected": True,
+    }
+    result = dict(metadata)
+    return (result, descriptor) if return_descriptor else result
 
 
 def load_perturbation_embeddings(
-    path: Path, targets: list[str]
-) -> dict[str, torch.Tensor]:
-    raw_map = torch.load(path, map_location="cpu", weights_only=False)
-    require(isinstance(raw_map, dict), f"Expected a dictionary in {path}")
+    path: Path,
+    targets: list[str],
+    *,
+    expected_sha256: str,
+    return_descriptor: bool = False,
+) -> (
+    dict[str, torch.Tensor]
+    | tuple[dict[str, torch.Tensor], dict[str, Any]]
+):
+    # Legacy STATE maps encode NumPy scalar string keys.  This is the minimum
+    # explicit allowlist required to read those objects in weights-only mode;
+    # the complete result is constrained below to scalar strings and tensors.
+    numpy_scalar = np._core.multiarray.scalar
+    safe_globals = (
+        numpy_scalar,
+        np.dtype,
+        np.dtypes.Float32DType,
+        np.dtypes.StrDType,
+    )
+    try:
+        raw_map, load_descriptor = load_restricted_tensor_mapping(
+            path,
+            label="STATE perturbation map",
+            expected_sha256=expected_sha256,
+            safe_globals=safe_globals,
+            include_local_path_identity=True,
+        )
+    except TargetFeatureAuthenticationError as error:
+        raise RuntimeError(str(error)) from error
+    require(type(raw_map) is dict, f"Expected a plain dictionary in {path}")
+    require(
+        all(isinstance(key, (str, np.str_)) for key in raw_map),
+        "STATE perturbation-map keys must be Python or NumPy strings",
+    )
+    require(
+        all(type(value) is torch.Tensor for value in raw_map.values()),
+        "STATE perturbation-map values must be plain tensors",
+    )
     embedding_map = {str(key): value for key, value in raw_map.items()}
+    require(
+        len(embedding_map) == len(raw_map),
+        "STATE perturbation-map keys collide after string normalization",
+    )
     required_names = [CONTROL_LABEL, *targets]
     missing = [name for name in required_names if name not in embedding_map]
     require(
@@ -296,6 +603,8 @@ def load_perturbation_embeddings(
         float(torch.linalg.vector_norm(result[CONTROL_LABEL])) == 0.0,
         "Expected the saved non-targeting perturbation embedding to be the zero vector",
     )
+    if return_descriptor:
+        return result, load_descriptor
     return result
 
 
@@ -484,19 +793,228 @@ def sparsify_effect(
     }
 
 
-def load_state_model(checkpoint: Path, device: torch.device) -> Any:
+def _validate_restricted_checkpoint_graph(payload: object) -> dict[str, int]:
+    """Constrain the complete weights-only result to a bounded plain graph."""
+
+    active: set[int] = set()
+    counts = {"objects": 0, "tensors": 0, "tensor_elements": 0}
+
+    def visit(value: object, depth: int) -> None:
+        counts["objects"] += 1
+        require(counts["objects"] <= MAX_CHECKPOINT_OBJECTS, "Checkpoint object graph is too large")
+        require(depth <= 32, "Checkpoint object graph is too deeply nested")
+        if value is None or type(value) is bool:
+            return
+        if type(value) is int:
+            require(abs(value) <= 2**63 - 1, "Checkpoint integer is out of range")
+            return
+        if type(value) is float:
+            require(math.isfinite(value), "Checkpoint contains a non-finite scalar")
+            return
+        if type(value) is str:
+            require(len(value.encode("utf-8")) <= 1 << 20, "Checkpoint string is too long")
+            return
+        if type(value) is bytes:
+            require(len(value) <= 1 << 20, "Checkpoint byte string is too long")
+            return
+        if type(value) is torch.Tensor:
+            counts["tensors"] += 1
+            counts["tensor_elements"] += value.numel()
+            require(counts["tensors"] <= MAX_CHECKPOINT_TENSORS, "Checkpoint has too many tensors")
+            require(
+                counts["tensor_elements"] <= MAX_CHECKPOINT_TENSOR_ELEMENTS,
+                "Checkpoint tensor payload is too large",
+            )
+            require(value.device.type == "cpu", "Checkpoint tensor was not mapped to CPU")
+            require(value.layout == torch.strided, "Checkpoint tensor must use strided layout")
+            require(not value.is_quantized and not value.is_sparse, "Unsupported checkpoint tensor type")
+            return
+        require(
+            isinstance(value, Mapping) or type(value) in (list, tuple),
+            f"Checkpoint contains unsupported type: {type(value).__module__}.{type(value).__name__}",
+        )
+        identity = id(value)
+        require(identity not in active, "Checkpoint object graph contains a cycle")
+        active.add(identity)
+        try:
+            if isinstance(value, Mapping):
+                require(len(value) <= 100_000, "Checkpoint mapping is too large")
+                for key, item in value.items():
+                    require(
+                        type(key) in (str, int),
+                        "Checkpoint mappings may use only string or integer keys",
+                    )
+                    visit(key, depth + 1)
+                    visit(item, depth + 1)
+            else:
+                require(len(value) <= 100_000, "Checkpoint sequence is too large")
+                for item in value:
+                    visit(item, depth + 1)
+        finally:
+            active.remove(identity)
+
+    visit(payload, 0)
+    return counts
+
+
+def _validate_state_hyperparameters(
+    raw: object,
+    expected_gene_names: list[str] | None,
+) -> dict[str, Any]:
+    require(type(raw) is dict, "Checkpoint hyper_parameters must be a plain dictionary")
+    unknown = sorted(set(raw) - STATE_HPARAMETER_KEYS)
+    require(not unknown, f"Checkpoint contains unsupported hyper_parameters: {unknown}")
+    required = {
+        "input_dim",
+        "hidden_dim",
+        "output_dim",
+        "pert_dim",
+        "gene_names",
+        "cell_set_len",
+        "output_space",
+        "transformer_backbone_key",
+        "transformer_backbone_kwargs",
+    }
+    missing = sorted(required - set(raw))
+    require(not missing, f"Checkpoint hyper_parameters lack required fields: {missing}")
+    for key, expected in (
+        ("input_dim", EXPECTED_SUPPORT_GENES),
+        ("output_dim", EXPECTED_SUPPORT_GENES),
+        ("pert_dim", EXPECTED_PERT_DIM),
+        ("cell_set_len", 128),
+    ):
+        require(type(raw[key]) is int and raw[key] == expected, f"Unexpected checkpoint {key}")
+    require(
+        type(raw["hidden_dim"]) is int and 1 <= raw["hidden_dim"] <= 8_192,
+        "Invalid checkpoint hidden_dim",
+    )
+    genes = raw["gene_names"]
+    require(
+        type(genes) is list
+        and len(genes) == EXPECTED_SUPPORT_GENES
+        and all(type(gene) is str and bool(gene) for gene in genes)
+        and len(set(genes)) == len(genes),
+        "Checkpoint gene_names must be 18,080 unique non-empty strings",
+    )
+    if expected_gene_names is not None:
+        require(genes == expected_gene_names, "Checkpoint gene_names do not match the support axis")
+    require(raw["output_space"] == "all", "Checkpoint output_space must be all")
+    require(raw["transformer_backbone_key"] == "llama", "Unsupported transformer backbone")
+    require(type(raw["transformer_backbone_kwargs"]) is dict, "Bad transformer backbone settings")
+    if "control_pert" in raw:
+        require(raw["control_pert"] == CONTROL_LABEL, "Unexpected checkpoint control label")
+    if "embed_key" in raw:
+        require(raw["embed_key"] is None, "This adapter supports only gene-space STATE checkpoints")
+    if "batch_encoder" in raw:
+        require(type(raw["batch_encoder"]) is bool and not raw["batch_encoder"], "Batch encoder is unsupported")
+    if "predict_residual" in raw:
+        require(type(raw["predict_residual"]) is bool, "predict_residual must be boolean")
+    # The graph validator has already proved these values are plain and
+    # acyclic. JSON round-tripping produces a detached plain dictionary so the
+    # model cannot mutate the authenticated checkpoint object.
+    return json.loads(json.dumps(raw, allow_nan=False))
+
+
+def _validate_checkpoint_payload(
+    payload: object,
+    expected_gene_names: list[str] | None,
+) -> tuple[dict[str, torch.Tensor], dict[str, Any], dict[str, int]]:
+    counts = _validate_restricted_checkpoint_graph(payload)
+    require(type(payload) is dict, "Lightning checkpoint root must be a plain dictionary")
+    unknown = sorted(set(payload) - LIGHTNING_CHECKPOINT_KEYS)
+    require(not unknown, f"Checkpoint contains unsupported root fields: {unknown}")
+    required = {"state_dict", "hyper_parameters"}
+    missing = sorted(required - set(payload))
+    require(not missing, f"Checkpoint lacks required root fields: {missing}")
+    for key, expected_type in (
+        ("callbacks", dict),
+        ("loops", dict),
+        ("optimizer_states", list),
+        ("lr_schedulers", list),
+    ):
+        if key in payload:
+            require(type(payload[key]) is expected_type, f"Checkpoint field {key} has wrong type")
+    for key in ("epoch", "global_step"):
+        if key in payload:
+            require(type(payload[key]) is int and payload[key] >= 0, f"Checkpoint field {key} is invalid")
+    if "pytorch-lightning_version" in payload:
+        require(type(payload["pytorch-lightning_version"]) is str, "Bad Lightning version field")
+    if "hparams_name" in payload:
+        require(type(payload["hparams_name"]) is str, "Bad hparams_name field")
+
+    raw_state = payload["state_dict"]
+    require(isinstance(raw_state, Mapping), "Checkpoint state_dict must be a mapping")
+    require(bool(raw_state), "Checkpoint state_dict is empty")
+    require(
+        all(type(key) is str and bool(key) for key in raw_state),
+        "Checkpoint state_dict keys must be non-empty strings",
+    )
+    require(
+        all(type(value) is torch.Tensor for value in raw_state.values()),
+        "Checkpoint state_dict values must be plain tensors",
+    )
+    state_dict = dict(raw_state)
+    hyperparameters = _validate_state_hyperparameters(
+        payload["hyper_parameters"], expected_gene_names
+    )
+    return state_dict, hyperparameters, counts
+
+
+def _import_state_model_class() -> type[Any]:
     try:
         from state.tx.models.state_transition import StateTransitionPerturbationModel
     except ImportError as error:
         raise RuntimeError(
             "STATE is not importable. Install the ArcInstitute/state package in this environment."
         ) from error
-    model = StateTransitionPerturbationModel.load_from_checkpoint(
-        str(checkpoint), map_location="cpu", weights_only=False
+    return StateTransitionPerturbationModel
+
+
+def load_state_model(
+    checkpoint: Path,
+    device: torch.device,
+    *,
+    expected_sha256: str,
+    expected_gene_names: list[str] | None = None,
+    return_descriptor: bool = False,
+) -> Any | tuple[Any, dict[str, Any]]:
+    """Reconstruct STATE from a restricted weights-only checkpoint payload."""
+
+    try:
+        payload, descriptor = load_restricted_tensor_mapping(
+            checkpoint,
+            label="STATE Lightning checkpoint",
+            expected_sha256=expected_sha256,
+            include_local_path_identity=True,
+        )
+    except TargetFeatureAuthenticationError as error:
+        raise RuntimeError(str(error)) from error
+    state_dict, hyperparameters, graph_counts = _validate_checkpoint_payload(
+        payload, expected_gene_names
     )
+    model_class = _import_state_model_class()
+    model = model_class(**hyperparameters)
+    model.load_state_dict(state_dict, strict=True)
     model = model.to(device)
     model.eval()
-    return model
+    descriptor.update(
+        {
+            "checkpoint_schema": "pytorch-lightning-plain-state-dict-v1",
+            "root_fields": sorted(payload),
+            "hyperparameter_fields": sorted(hyperparameters),
+            "gene_axis_sha256": hashlib.sha256(
+                json.dumps(hyperparameters["gene_names"], separators=(",", ":")).encode()
+            ).hexdigest(),
+            "state_dict_keys_sha256": hashlib.sha256(
+                json.dumps(sorted(state_dict), separators=(",", ":")).encode()
+            ).hexdigest(),
+            "state_dict_tensor_count": len(state_dict),
+            "restricted_graph_counts": graph_counts,
+            "lightning_load_from_checkpoint_used": False,
+            "strict_state_dict_load": True,
+        }
+    )
+    return (model, descriptor) if return_descriptor else model
 
 
 def validate_model(model: Any, args: argparse.Namespace) -> dict[str, Any]:
@@ -752,7 +1270,7 @@ def main() -> None:
     pert_map_path = model_dir / "pert_onehot_map.pt"
     var_dims_path = model_dir / "var_dims.pkl"
     config_path = model_dir / "config.yaml"
-    for path in (pert_map_path, var_dims_path):
+    for path in (pert_map_path,):
         require(path.is_file(), f"Required STATE run file is missing: {path}")
 
     controls_dir = args.controls_dir.resolve()
@@ -792,8 +1310,15 @@ def main() -> None:
     require(all(target in current_gene_index for target in targets), "A target is absent from current genes")
     require(all(target in support_gene_set for target in targets), "A target is absent from support genes")
 
-    var_dims = load_var_dims(var_dims_path, support_genes)
-    embeddings = load_perturbation_embeddings(pert_map_path, targets)
+    var_dims, var_dims_load = load_var_dims(
+        var_dims_path, support_genes, return_descriptor=True
+    )
+    embeddings, perturbation_map_load = load_perturbation_embeddings(
+        pert_map_path,
+        targets,
+        expected_sha256=args.perturbation_map_expected_sha256,
+        return_descriptor=True,
+    )
 
     device = torch.device(args.device)
     if args.require_cuda:
@@ -812,7 +1337,13 @@ def main() -> None:
         device_name = "CPU"
 
     print(f"Loading STATE checkpoint {checkpoint}", flush=True)
-    model = load_state_model(checkpoint, device)
+    model, checkpoint_load = load_state_model(
+        checkpoint,
+        device,
+        expected_sha256=args.checkpoint_expected_sha256,
+        expected_gene_names=support_genes,
+        return_descriptor=True,
+    )
     model_info = validate_model(model, args)
     print(
         f"Loaded {model_info['parameters']:,} parameters on {device_name}; "
@@ -958,9 +1489,9 @@ def main() -> None:
             "cuda_runtime": torch.version.cuda,
             "repository_commit": git_commit(Path(__file__).resolve().parents[1]),
             "state_source_commit": git_commit(Path(inspect.getfile(type(model))).resolve().parent),
-            "checkpoint": describe_file(checkpoint),
-            "perturbation_map": describe_file(pert_map_path),
-            "var_dims": describe_file(var_dims_path),
+            "checkpoint": checkpoint_load,
+            "perturbation_map": perturbation_map_load,
+            "var_dims": var_dims_load,
             "state_config": describe_file(config_path) if config_path.is_file() else None,
             "current_gene_axis": describe_file(current_gene_path),
             "support_gene_axis": describe_file(args.support_genes.resolve()),

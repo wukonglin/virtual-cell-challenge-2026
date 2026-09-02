@@ -33,7 +33,19 @@ from generate_state_direct_counts import transform_raw_row  # noqa: E402
 
 class ScorerAwarePolicyTests(unittest.TestCase):
     def test_target_force_is_off_by_default(self) -> None:
-        with patch.object(sys, "argv", ["generator", "--model-dir", "model"]):
+        with patch.object(
+            sys,
+            "argv",
+            [
+                "generator",
+                "--model-dir",
+                "model",
+                "--checkpoint-expected-sha256",
+                "0" * 64,
+                "--perturbation-map-expected-sha256",
+                "1" * 64,
+            ],
+        ):
             args = parse_args()
         self.assertEqual(args.target_policy, "off")
         self.assertEqual(args.count_emission, "round")
@@ -46,6 +58,10 @@ class ScorerAwarePolicyTests(unittest.TestCase):
                 "generator",
                 "--model-dir",
                 "model",
+                "--checkpoint-expected-sha256",
+                "0" * 64,
+                "--perturbation-map-expected-sha256",
+                "1" * 64,
                 "--output-h5ad",
                 str(root / "candidate.h5ad"),
                 "--output-json",

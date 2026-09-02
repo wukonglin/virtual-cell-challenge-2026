@@ -4,6 +4,8 @@ name = "v7_scdfm_residual_gamma1"
 seed = 20260901
 status = "preregistered"
 official_submission_allowed = false
+training_ready = false
+training_blocker = "NO_PORTABLE_TRAINER_CONSUMING_HASH_PINNED_GATE"
 
 [anchor]
 model = "state_v51_public_residual"
@@ -33,7 +35,7 @@ measured_challenge_perturbation_data_allowed = false
 [model]
 role = "reliability_gated_residual_distribution"
 absolute_scdfm_output_allowed = false
-target_conditioning = "esm2_5120_projected"
+target_conditioning = "arc_official_opaque_gene_features_5120_projected"
 context_conditioning = "released_control_summary"
 expression_space = "library_normalized_log1p"
 gene_subset_size = 1000
@@ -54,8 +56,10 @@ centroid_atol = 1e-10
 status = "UNRESOLVED_REQUIRED"
 model_id = "UNRESOLVED_REQUIRED"
 model_revision = "UNRESOLVED_REQUIRED"
+weights_artifact = "UNRESOLVED_REQUIRED"
 weights_sha256 = "UNRESOLVED_REQUIRED"
 protein_sequence_source = "UNRESOLVED_REQUIRED"
+protein_sequence_source_sha256 = "UNRESOLVED_REQUIRED"
 gene_to_protein_mapping = "UNRESOLVED_REQUIRED"
 gene_to_protein_mapping_sha256 = "UNRESOLVED_REQUIRED"
 pooling_rule = "UNRESOLVED_REQUIRED"
@@ -64,6 +68,76 @@ embedding_receipt = "UNRESOLVED_REQUIRED"
 embedding_receipt_sha256 = "UNRESOLVED_REQUIRED"
 provenance_complete = false
 gate_1b_allowed = false
+feature_derivation_replay_implemented = false
+full_feature_map_recomputed_from_registered_upstream_assets = false
+
+[target_conditioning_artifact_authentication]
+status = "authenticated_opaque_artifact"
+role = "artifact_identity_and_structure_only"
+official_opaque_artifact = true
+opaque_artifact_training_mode = "official_opaque_artifact"
+official_opaque_artifact_training_allowed = true
+gate_1c_allowed = true
+gate_1c_scope = "authenticated_arc_supplied_artifact_identity_and_structure_only"
+authenticator = "scripts/authenticate_esm2_target_features.py"
+raw_receipt = "dataset/state_support/receipts/esm2_target_features_gate1c_v2.json"
+raw_receipt_schema = "vcc-arc-esm2-target-features-authentication-gate1c-v2"
+raw_receipt_size_bytes = 4864
+raw_receipt_sha256 = "a858816ce4ac4dc6581d0dda698c9b146bb6e33c70f132078317c3fd0b99be62"
+tracked_summary = "results/scdfm_v7/esm2_target_features_authentication.json"
+source_url = "https://storage.googleapis.com/vcc_data_prod/datasets/state/competition_support_set.zip"
+source_object_provider = "Google Cloud Storage"
+source_object_generation = "1763329752965344"
+source_object_last_modified = "Sun, 16 Nov 2025 21:49:12 GMT"
+source_object_size_bytes = 8716992349
+source_object_crc32c_base64 = "MBP7uA=="
+source_object_crc32c_hex = "3013fbb8"
+source_object_component_count = 32
+source_object_metadata_scope = "observed_http_object_metadata"
+source_url_claimed_permanently_immutable = false
+source_archive = "dataset/state_support/competition_support_set.zip"
+source_archive_size_bytes = 8716992349
+source_archive_sha256 = "f1d5fd56a2eee240e5585fac52bb75b0b830a7be6a5f6de1bf773bff4f507f7c"
+archive_member = "competition_support_set/ESM2_pert_features.pt"
+archive_member_size_bytes = 410886729
+archive_member_sha256 = "a210e1cc7901513999b2bca3836ba9e2f203cd008be4e9a9d6412a2267de9748"
+archive_member_crc32 = "85d91f50"
+artifact = "dataset/state_support/extracted/ESM2_pert_features.pt"
+artifact_size_bytes = 410886729
+artifact_sha256 = "a210e1cc7901513999b2bca3836ba9e2f203cd008be4e9a9d6412a2267de9748"
+feature_count = 19790
+embedding_dimension = 5120
+tensor_dtype = "torch.float32"
+tensor_layout = "torch.strided"
+canonical_key_list_sha256 = "47f457d410373f0ef4e2743b6652c20b813660c9230acbe8fd5c80c7d1e94ef1"
+canonical_map_sha256 = "e41e97901c2e208e27c631f67c533f01bab2314ef1f9367190f832256866b399"
+target_manifest_size_bytes = 1906
+target_manifest_sha256 = "f57edd7b912ebd718efc7ee9d0f334772513e7cc418d133ce525470e373b3276"
+target_count = 300
+ordered_target_list_sha256 = "f170abd94f4735ab7a16efc8a3263076d50e0e470f989d38033d17e2edf5fd13"
+ordered_target_feature_subset_sha256 = "2149553a0783bb3959403e62913b1ff9983e2abc2a1e99025608c0660d12d2d8"
+vcc_target_coverage = 300
+upstream_model_metadata_provided = false
+does_not_satisfy_target_conditioning_provenance = true
+provenance_complete = false
+gate_1b_allowed = false
+
+[portable_training]
+schema = "vcc-scdfm-portable-training-contract-v1"
+training_ready = false
+trainer_entrypoint_implemented = false
+offline_split_audit_environment = ".venv-state"
+offline_split_audit_python = ".venv-state/bin/python"
+offline_split_audit_only = true
+offline_audit_may_reconstruct_kmeans = true
+portable_trainer_must_not_import_or_run_kmeans = true
+portable_trainer_must_consume_hash_pinned_manifest = true
+portable_trainer_must_consume_hash_pinned_preflight = true
+portable_trainer_must_verify_canonical_bytes = true
+portable_trainer_must_verify_manifest_preflight_cross_link = true
+portable_hash_lock = "artifacts/scdfm/v7/training/portable_training_gate_lock.json"
+portable_hash_lock_repository_tracked_required = true
+portable_hash_lock_status = "UNRESOLVED_REQUIRED"
 
 [search]
 scdfm_residual_weights = [0.0, 0.05, 0.10, 0.20]
@@ -76,6 +150,56 @@ secondary_non_harm_manifest = "artifacts/scdfm/v7/splits/jurkat_non_harm.json"
 secondary_non_harm_excluded_from_fit = true
 secondary_non_harm_manifest_required_before_training = true
 minimum_random_seeds = 3
+
+[search.jurkat_non_harm_registration]
+schema = "vcc-scdfm-jurkat-non-harm-registration-v1"
+raw_jurkat = "dataset/raw/replogle_nadig/GSE264667_jurkat_raw_singlecell_01.h5ad"
+raw_size_bytes = 9366490264
+raw_sha256 = "ffbe15f2c8f7ffcfd7b0ba9e6937d4ebc2d03b0179fa8234648a59bcb82c04a3"
+raw_shape = [262956, 8882]
+raw_treated_target_count = 2393
+raw_control_cells = 12013
+esm2_artifact = "dataset/state_support/extracted/ESM2_pert_features.pt"
+historical_panel = "dataset/public_v51/split_manifest.csv"
+historical_panel_sha256 = "7ddbd3b992f7f4630fd4c9b12263c62866a0ab2f7180ccad59a986eea91847d4"
+state_support_sources = [
+  { path = "dataset/state_support/extracted/competition_train.h5", size_bytes = 15482098599, sha256 = "3dc850b767553648b91bf0b21a0e753be3010f36cf0cf3e98f6ef616c75aa847", target_count = 150, target_list_sha256 = "ad19ff49af1f8358545d7ce65c5bb5bd9b0a583b4b7ed584de86949e1f98b740" },
+  { path = "dataset/state_support/extracted/hepg2.h5", size_bytes = 680426532, sha256 = "a6c508793d96eeba7977f9f64de1dba1405db617f7b8558f248ba95c718d2f65", target_count = 68, target_list_sha256 = "825e096892d42f0e5329840bfaff25c41703bdabf1a679b100beef80f71faa14" },
+  { path = "dataset/state_support/extracted/jurkat.h5", size_bytes = 1551183536, sha256 = "4d23ea34563e7875e75a9207f986fe78a9789b329a0ce5599aa79cccb9215fe7", target_count = 68, target_list_sha256 = "825e096892d42f0e5329840bfaff25c41703bdabf1a679b100beef80f71faa14" },
+  { path = "dataset/state_support/extracted/k562.h5", size_bytes = 1337939102, sha256 = "ae318acc14bbf44752088352dcc2853fbc6a633184fe71a55cd6848ca431537c", target_count = 53, target_list_sha256 = "872c7eb99e6f751ced603a8deed38a2cfcd8e42a90eafa69ba7209ba3dcd9755" },
+  { path = "dataset/state_support/extracted/k562_gwps.h5", size_bytes = 8083142186, sha256 = "b16f446d6aa8ca6f2bfecb65bb4a716f7cfa7dabfb5e876a7fb349ba5d0aa38b", target_count = 183, target_list_sha256 = "3b9a833603ef825a29aa5e91e0abcc80de014f443ed65620f0f407bd3b21bdc9" },
+  { path = "dataset/state_support/extracted/rpe1.h5", size_bytes = 1616886534, sha256 = "51ebd598c3f6f171e4c0668fa3539e943aec6b77514aa1061773e4297696dff9", target_count = 68, target_list_sha256 = "825e096892d42f0e5329840bfaff25c41703bdabf1a679b100beef80f71faa14" },
+]
+expected_state_support_target_union = 197
+expected_state_support_target_union_sha256 = "53ebab565d7e5c9cc12c431e3207ab20416e247bceffe4bca7a4d90f63911ace"
+seed = 20260901
+minimum_treated_cells = 64
+desired_held_targets = 300
+cluster_count = 30
+kmeans_n_init = 20
+kmeans_init = "k-means++"
+kmeans_max_iter = 300
+kmeans_tol = 0.0001
+kmeans_algorithm = "lloyd"
+thread_policy = "threadpoolctl-limit-1"
+numpy_version = "2.4.6"
+scikit_learn_version = "1.9.0"
+training_preflight_required = true
+training_preflight_schema = "vcc-scdfm-jurkat-training-preflight-v1"
+training_preflight_receipt = "artifacts/scdfm/v7/training/jurkat_training_preflight.json"
+construction_environment = ".venv-state"
+construction_environment_role = "offline_split_audit_only"
+trainer_may_reconstruct_clusters = false
+trainer_may_refit_or_relabel_clusters = false
+global_exclusion_scopes = [
+  "model_fit",
+  "checkpoint_selection",
+  "normalization_fit",
+  "feature_selection",
+  "graph_construction",
+  "decoder_fit",
+  "hyperparameter_selection",
+]
 
 [promotion]
 require_all_six_metrics = true

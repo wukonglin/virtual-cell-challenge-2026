@@ -65,6 +65,7 @@ from infer_state_effect_prior import (  # noqa: E402
     load_perturbation_embeddings,
     load_state_model,
     load_var_dims,
+    parse_expected_sha256,
     read_single_column,
     require,
     resolve_checkpoint,
@@ -135,6 +136,18 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--model-dir", type=Path, required=True)
     parser.add_argument("--checkpoint", type=Path, default=Path("selected.ckpt"))
+    parser.add_argument(
+        "--checkpoint-expected-sha256",
+        type=parse_expected_sha256,
+        required=True,
+        help="Required pre-registered SHA-256 for the selected STATE checkpoint.",
+    )
+    parser.add_argument(
+        "--perturbation-map-expected-sha256",
+        type=parse_expected_sha256,
+        required=True,
+        help="Required pre-registered SHA-256 for pert_onehot_map.pt.",
+    )
     parser.add_argument("--selection-json", type=Path, default=None)
     parser.add_argument(
         "--support-genes",
@@ -961,11 +974,26 @@ def main() -> None:
         for path in (checkpoint, selection_path, pert_map_path, var_dims_path):
             require(path.is_file(), f"Missing required STATE input: {path}")
         checkpoint_hash = sha256_file(checkpoint)
+        require(
+            checkpoint_hash == args.checkpoint_expected_sha256,
+            "STATE checkpoint differs from --checkpoint-expected-sha256",
+        )
         selection = validate_selection_manifest(selection_path, checkpoint, checkpoint_hash)
         var_dims = load_var_dims(var_dims_path, support_genes)
-        embeddings = load_perturbation_embeddings(pert_map_path, list(panel.targets))
+        embeddings, perturbation_map_load = load_perturbation_embeddings(
+            pert_map_path,
+            list(panel.targets),
+            expected_sha256=args.perturbation_map_expected_sha256,
+            return_descriptor=True,
+        )
         device, device_name = _device(args)
-        model = load_state_model(checkpoint, device)
+        model, checkpoint_load = load_state_model(
+            checkpoint,
+            device,
+            expected_sha256=args.checkpoint_expected_sha256,
+            expected_gene_names=support_genes,
+            return_descriptor=True,
+        )
         model_info = validate_model(model, args.model_chunk_size)
         control_embedding = embeddings[CONTROL_LABEL].to(device=device, dtype=torch.float32)
 
@@ -1182,12 +1210,9 @@ def main() -> None:
                 "panel_manifest": describe_file(panel.manifest_path),
                 "panel_csv": describe_file(panel.csv_path),
                 "support_gene_axis": describe_file(support_path),
-                "checkpoint": {
-                    **describe_file(checkpoint, hash_file=False),
-                    "sha256": checkpoint_hash,
-                },
+                "checkpoint": checkpoint_load,
                 "checkpoint_selection": describe_file(selection_path),
-                "perturbation_map": describe_file(pert_map_path),
+                "perturbation_map": perturbation_map_load,
                 "var_dims": describe_file(var_dims_path),
                 "state_config": describe_file(config_path) if config_path.is_file() else None,
                 "residual_artifact": residual.source,

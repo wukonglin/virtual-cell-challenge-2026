@@ -56,6 +56,7 @@ nvidia-smi \
 srun --nodes=1 --ntasks=1 \
   "$PYTHON_BIN" scripts/smoke_scdfm_contract.py \
   --config "$CONFIG_PATH" \
+  --launcher slurm/h100_scdfm_contract_smoke.sbatch \
   --output-json "$OUTPUT_JSON" \
   --device cuda \
   --require-cuda \

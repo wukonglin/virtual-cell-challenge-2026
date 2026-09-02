@@ -252,7 +252,9 @@ A minimal CPU plumbing smoke can be reproduced without claiming GPU parity:
 ```bash
 .venv-state/bin/python scripts/generate_state_direct_counts.py \
   --model-dir artifacts/state_runs/state_sm_20k_v0 \
-  --checkpoint selected.ckpt \
+  --checkpoint step16000.ckpt \
+  --checkpoint-expected-sha256 e407e51855792d0dc85483a977f63497d9ac9a6893db360d840c7d9ce556780d \
+  --perturbation-map-expected-sha256 6ab08c62dd117012b386051a9f375505abcd17b88ed76f0ad232199624291170 \
   --selection-json artifacts/state_runs/state_sm_20k_v0/checkpoints/selected_checkpoint.json \
   --controls-dir dataset/controls \
   --support-genes dataset/state_support/extracted/gene_names.csv \
@@ -346,7 +348,9 @@ Run a minimal CPU structure smoke before allocating a GPU:
 ```bash
 .venv-state/bin/python scripts/generate_state_scorer_aware_counts.py \
   --model-dir artifacts/state_runs/state_sm_20k_v0 \
-  --checkpoint checkpoints/selected.ckpt \
+  --checkpoint checkpoints/step16000.ckpt \
+  --checkpoint-expected-sha256 e407e51855792d0dc85483a977f63497d9ac9a6893db360d840c7d9ce556780d \
+  --perturbation-map-expected-sha256 6ab08c62dd117012b386051a9f375505abcd17b88ed76f0ad232199624291170 \
   --selection-json artifacts/state_runs/state_sm_20k_v0/checkpoints/selected_checkpoint.json \
   --controls-dir dataset/controls \
   --support-genes dataset/state_support/extracted/gene_names.csv \

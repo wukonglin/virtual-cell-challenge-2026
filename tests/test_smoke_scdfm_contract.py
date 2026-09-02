@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import torch
 
@@ -67,11 +68,14 @@ center_residual_by_context_target = true
     def test_cpu_smoke_has_finite_cfm_mmd_and_backward_contract(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             config = self._config(Path(temporary) / "config.toml")
+            launcher = Path(temporary) / "launcher.sbatch"
+            launcher.write_text("#!/usr/bin/env bash\n", encoding="utf-8")
             receipt = module.run_contract_smoke(
                 config_path=config,
                 requested_device="cpu",
                 batch_size=4,
                 synthetic_gene_count=8,
+                launcher_path=launcher,
             )
 
         self.assertEqual(receipt["schema"], module.SCHEMA)
@@ -88,6 +92,54 @@ center_residual_by_context_target = true
         self.assertGreater(receipt["training_contract"]["gradient_l2_norm"], 0.0)
         self.assertFalse(receipt["scope"]["official_submission_artifact"])
         self.assertFalse(receipt["scope"]["model_performance_evaluation"])
+        self.assertEqual(
+            receipt["registered_files"]["launcher"]["filename"],
+            "launcher.sbatch",
+        )
+        self.assertTrue(
+            receipt["checks"][
+                "registered_config_implementation_and_launcher_are_unchanged"
+            ]
+        )
+        self.assertTrue(
+            receipt["checks"][
+                "configuration_was_parsed_from_authenticated_descriptor_bytes"
+            ]
+        )
+
+    def test_run_does_not_reopen_config_through_path_loader(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            config = self._config(Path(temporary) / "config.toml")
+            with mock.patch.object(
+                module,
+                "load_smoke_config",
+                side_effect=AssertionError("path loader must not be called"),
+            ):
+                receipt = module.run_contract_smoke(
+                    config_path=config,
+                    requested_device="cpu",
+                    batch_size=4,
+                    synthetic_gene_count=8,
+                )
+
+        self.assertEqual(receipt["status"], "passed")
+        self.assertTrue(
+            receipt["registered_files"]["configuration"][
+                "bytes_read_and_hashed_from_same_descriptor"
+            ]
+        )
+
+    def test_registered_file_descriptor_rejects_a_symlink_component(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            real = root / "real"
+            real.mkdir()
+            artifact = real / "config.toml"
+            artifact.write_text("value = 1\n", encoding="utf-8")
+            alias = root / "alias"
+            alias.symlink_to(real, target_is_directory=True)
+            with self.assertRaisesRegex(module.ContractSmokeError, "Unable to open"):
+                module.describe_regular_file(alias / "config.toml", "test file")
 
     def test_state_anchor_and_scdfm_mmd_weights_have_distinct_bindings(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -184,6 +236,20 @@ center_residual_by_context_target = true
                     output, {"schema": "second", "value": 2}
                 )
             self.assertEqual(json.loads(output.read_text(encoding="utf-8")), first)
+
+    def test_receipt_writer_rejects_a_symlink_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            real = root / "real"
+            real.mkdir()
+            alias = root / "alias"
+            alias.symlink_to(real, target_is_directory=True)
+            with self.assertRaises(OSError):
+                module.write_json_atomic_no_overwrite(
+                    alias / "receipt.json",
+                    {"schema": "must-not-write"},
+                )
+            self.assertFalse((real / "receipt.json").exists())
 
 
 if __name__ == "__main__":

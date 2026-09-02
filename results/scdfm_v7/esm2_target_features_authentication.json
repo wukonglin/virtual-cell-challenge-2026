@@ -1,0 +1,72 @@
+{
+  "schema": "vcc-arc-esm2-target-features-authentication-sanitized-gate1c-v2",
+  "status": "passed",
+  "authentication_receipt": "dataset/state_support/receipts/esm2_target_features_gate1c_v2.json",
+  "authentication_receipt_schema": "vcc-arc-esm2-target-features-authentication-gate1c-v2",
+  "authentication_receipt_size_bytes": 4864,
+  "authentication_receipt_sha256": "a858816ce4ac4dc6581d0dda698c9b146bb6e33c70f132078317c3fd0b99be62",
+  "contract": {
+    "artifact_role": "opaque_arc_supplied_target_features",
+    "authentication_scope": "artifact_identity_and_structure_only",
+    "does_not_establish_upstream_model_provenance": true,
+    "opaque_artifact_training_mode": "official_opaque_artifact",
+    "official_opaque_artifact_training_allowed": true,
+    "provenance_complete": false,
+    "gate_1b_allowed": false,
+    "gate_1c_allowed": true,
+    "gate_1c_scope": "authenticated_arc_supplied_artifact_identity_and_structure_only"
+  },
+  "archive": {
+    "filename": "competition_support_set.zip",
+    "size_bytes": 8716992349,
+    "sha256": "f1d5fd56a2eee240e5585fac52bb75b0b830a7be6a5f6de1bf773bff4f507f7c",
+    "source_url": "https://storage.googleapis.com/vcc_data_prod/datasets/state/competition_support_set.zip",
+    "source_object": {
+      "provider": "Google Cloud Storage",
+      "generation": "1763329752965344",
+      "last_modified": "Sun, 16 Nov 2025 21:49:12 GMT",
+      "size_bytes": 8716992349,
+      "crc32c_base64": "MBP7uA==",
+      "crc32c_hex": "3013fbb8",
+      "component_count": 32,
+      "metadata_scope": "observed_http_object_metadata",
+      "source_url_claimed_permanently_immutable": false
+    },
+    "member": "competition_support_set/ESM2_pert_features.pt",
+    "member_size_bytes": 410886729,
+    "member_sha256": "a210e1cc7901513999b2bca3836ba9e2f203cd008be4e9a9d6412a2267de9748",
+    "member_crc32": "85d91f50"
+  },
+  "feature_artifact": {
+    "filename": "ESM2_pert_features.pt",
+    "size_bytes": 410886729,
+    "sha256": "a210e1cc7901513999b2bca3836ba9e2f203cd008be4e9a9d6412a2267de9748",
+    "feature_count": 19790,
+    "embedding_dimension": 5120,
+    "dtype": "torch.float32",
+    "all_values_finite": true,
+    "all_vectors_nonzero": true,
+    "restricted_weights_only_same_descriptor_load": true,
+    "preload_and_postload_sha256_match": true,
+    "canonical_key_list_sha256": "47f457d410373f0ef4e2743b6652c20b813660c9230acbe8fd5c80c7d1e94ef1",
+    "canonical_map_sha256": "e41e97901c2e208e27c631f67c533f01bab2314ef1f9367190f832256866b399"
+  },
+  "vcc_target_coverage": {
+    "target_manifest_sha256": "f57edd7b912ebd718efc7ee9d0f334772513e7cc418d133ce525470e373b3276",
+    "ordered_target_list_sha256": "f170abd94f4735ab7a16efc8a3263076d50e0e470f989d38033d17e2edf5fd13",
+    "requested_targets": 300,
+    "covered_targets": 300,
+    "missing_targets": 0,
+    "ordered_target_feature_subset_sha256": "2149553a0783bb3959403e62913b1ff9983e2abc2a1e99025608c0660d12d2d8"
+  },
+  "upstream_provenance": {
+    "model_id": "UNKNOWN_NOT_PROVIDED",
+    "model_revision": "UNKNOWN_NOT_PROVIDED",
+    "weights_sha256": "UNKNOWN_NOT_PROVIDED",
+    "protein_sequence_source": "UNKNOWN_NOT_PROVIDED",
+    "gene_to_protein_mapping": "UNKNOWN_NOT_PROVIDED",
+    "pooling_rule": "UNKNOWN_NOT_PROVIDED",
+    "inferred_from_embedding_dimension": false
+  },
+  "interpretation": "The exact Arc-supplied derived feature bytes, observed GCS object identity, and all requested target vectors are authenticated for the narrow Gate 1c official opaque-artifact mode. The source URL is not claimed permanently immutable. This result does not identify or authenticate an upstream ESM2 checkpoint, protein sequence collection, gene-to-protein mapping, isoform policy, or pooling rule and therefore does not open V7 Gate 1b."
+}

@@ -218,6 +218,85 @@ that manifest is created, authenticated, and excluded from every fitted
 transform. A cell line, donor, target cluster, perturbation group, or fitted
 graph may not cross its registered boundary.
 
+The historical V5.1 Jurkat 300-target panel is a denylist, not the V7 seal: its
+scores already informed a prior promotion decision. The dedicated V7 builder
+uses only target labels and counts, cell/batch/guide identifiers, gene-axis
+membership, historical and ARC/STATE target identifiers, and authenticated
+target embeddings. It holds complete official target-feature clusters,
+excludes every cluster member globally from model fitting, checkpoint
+selection, preprocessing,
+feature selection, graph construction, decoder fitting, and hyperparameter
+selection, and forbids every historical or ARC/STATE target from the scored
+non-harm set. It hashes the raw H5AD as opaque bytes but never deserializes
+values from its expression matrix. The builder and reconstructing authenticator
+are `scripts/build_scdfm_jurkat_non_harm_manifest.py` and
+`scripts/authenticate_scdfm_jurkat_non_harm_manifest.py`.
+
+The seal does not trust provenance strings. Gate 1b, which would establish
+end-to-end model, sequence-mapping, pooling, and feature-derivation lineage,
+remains permanently closed because those upstream facts were not released.
+Self-asserted files or status booleans cannot open it. Gate 1c is deliberately
+narrower: it authenticates the exact opaque target-feature artifact published
+by Arc for the official workflow. It binds the observed GCS object generation,
+size and CRC32C, outer archive, ZIP member, extracted bytes, tensor structure,
+canonical key and tensor-map hashes, ordered target list, and ordered target
+subset. Gate 1c permits deterministic split construction and conditioning on
+those exact released features while making no claim about an ESM2 model ID,
+revision, protein sequence, isoform mapping, or pooling rule. Only a private
+synthetic-test seam bypasses official byte identity; its outputs are marked
+`sealed_test_only` and rejected by production CLIs.
+
+Every ARC/STATE support source is independently bound by file size, file
+SHA-256, exact target-list SHA-256, and a separately registered union-target
+SHA-256. All consumed HDF5 metadata nodes and categorical components must be
+in-file hard links; soft links, external links, virtual datasets, and external
+dataset storage fail closed.
+
+Clustering is fixed to the registered NumPy and scikit-learn versions,
+single-thread `KMeans` with `k-means++`, Lloyd iterations, seed, `n_init`,
+`max_iter`, and tolerance. The builder repeats clustering and requires exact
+assignment identity, then stores the full assignment table and canonical
+assignment hash. Authentication reconstructs both the semantic object and the
+exact canonical JSON bytes.
+
+The Gate 1c offline audit constructs the production manifest and then a second
+sealed receipt that enumerates and hashes the only source-row selections
+allowed for Jurkat and every ARC/STATE input. Because this path authenticates
+roughly 37 GB of registered source data, it must run as the CPU Slurm job
+`slurm/cpu_build_scdfm_jurkat_gate1c_audit.sbatch`, not on a login node. Its
+fail-closed sequence is build manifest, authenticate manifest, build preflight,
+authenticate preflight. It is resumable: an existing manifest or preflight is
+never overwritten and must authenticate exactly before the next stage; only
+missing artifacts are built. Job-specific authentication receipts also refuse
+overwrite. The underlying offline audit commands are:
+
+```bash
+.venv-state/bin/python scripts/build_scdfm_jurkat_non_harm_manifest.py
+.venv-state/bin/python scripts/authenticate_scdfm_jurkat_non_harm_manifest.py
+.venv-state/bin/python scripts/preflight_scdfm_training_data.py
+.venv-state/bin/python scripts/authenticate_scdfm_training_preflight.py
+```
+
+These commands run only in the pinned `.venv-state` split-audit environment;
+they may reconstruct KMeans to audit determinism. They are not a trainer
+integration. No V7 trainer exists, so `training_ready=false`, the portable
+hash-lock is unresolved, and the test-only row-gate loader rejects production
+use. A future trainer must not import or rerun KMeans. Instead it must consume
+repository-tracked, canonical-byte manifest and preflight artifacts through an
+immutable lock containing both SHA-256 values, verify their cross-link, and
+reject any different row selection or held-cluster label before normalization,
+feature selection, graph construction, model/decoder fitting, checkpoint
+selection, or hyperparameter selection. Until that separate portable adapter
+and lock exist, training is forbidden rather than merely policy-gated.
+
+Arc's exact 19,790-by-5,120 target-feature artifact is structurally
+authenticated, but its release does not identify the upstream model revision,
+weights, protein sequences, gene-to-protein mapping, or pooling rule. The final
+Jurkat manifest is therefore a Gate 1c artifact, never evidence that Gate 1b
+passed. It may be emitted only after the exact registered official receipt is
+authenticated in the offline Slurm audit. A synthetic or self-asserted
+"complete" receipt cannot substitute for those official bytes.
+
 The generation command may accept only:
 
 - a frozen model and its receipt;
@@ -233,15 +312,49 @@ It may not accept any measured treated-cell matrix.
 ### Continuous target conditioning
 
 The upstream learned gene-ID perturbation embedding is replaced by a projected
-5,120-dimensional ESM2 vector. Every training and inference target must have a
-unique authenticated embedding. This avoids mapping 238 missing VCC targets
-to one padding token. A missing requested embedding is a hard error.
-The registered configuration is currently fail-closed: the exact ESM2 model
-identifier, immutable revision, weights digest, protein-sequence source,
-gene-to-protein mapping and digest, pooling rule, and embedding receipt are all
-explicitly `UNRESOLVED_REQUIRED`. Consequently Gate 1b is incomplete and
-training is forbidden until every field is replaced by authenticated values
-and `provenance_complete` and `gate_1b_allowed` are deliberately enabled.
+5,120-dimensional Arc official opaque gene-feature vector. Every training and
+inference target must have a unique authenticated vector. This avoids mapping
+238 missing VCC targets to one padding token. A missing requested vector is a
+hard error. The configuration deliberately does not name an exact ESM2 model,
+revision, sequence mapping, or pooling rule because Arc did not publish that
+lineage.
+The exact ESM2 model identifier, immutable revision, weights digest,
+protein-sequence source, gene-to-protein mapping and digest, and pooling rule
+are explicitly `UNRESOLVED_REQUIRED`. Consequently Gate 1b remains incomplete
+and may not be enabled by replacing strings or booleans. This does not prevent
+Gate 1c from using Arc's registered opaque feature bytes for split construction
+and target conditioning. Training is still forbidden for an independent
+reason: no portable trainer yet consumes the hash-pinned manifest and preflight.
+
+The bytes supplied inside Arc's STATE support archive have nevertheless been
+authenticated as an **opaque derived feature artifact**. The registered outer
+archive, ZIP member, and extracted `ESM2_pert_features.pt` agree exactly. A
+restricted `weights_only=True` load from the already-hashed descriptor found
+19,790 unique gene-symbol keys, each mapped to one finite, nonzero contiguous
+`float32[5120]` vector, and all 300 ordered VCC targets are covered. The
+auditor re-hashes the same inode after loading and binds deterministic hashes
+for the sorted key list, complete tensor map, target manifest, and ordered
+300-target subset. Its sanitized result is tracked at
+`results/scdfm_v7/esm2_target_features_authentication.json`.
+
+This artifact-level result deliberately does **not** fill any field in
+`target_conditioning_provenance`: the upstream model ID and revision, model
+weight digest, protein-sequence source, gene-to-protein/isoform mapping, and
+pooling rule were not included in the release. A 5,120-dimensional vector is
+not sufficient evidence from which to infer those facts. Therefore both
+`provenance_complete` and `gate_1b_allowed` remain false. Gate 1c is recorded
+separately and is valid only for the exact Arc artifact identity. Reproduce the
+artifact audit without downloading or deserializing an unregistered
+alternative using the registered v2 receipt path:
+
+```bash
+.venv-state/bin/python scripts/authenticate_esm2_target_features.py \
+  --output dataset/state_support/receipts/esm2_target_features_gate1c_v2.json
+```
+
+The command refuses to overwrite a receipt. Historical Bayesian and STATE
+perturbation-map consumers now use the same restricted, pre/post-hashed loader
+boundary; a custom Bayesian feature map requires an explicit expected SHA-256.
 
 ### Context conditioning
 
@@ -286,34 +399,47 @@ reference result.
 
 ### Phase 1: project-native smoke
 
-Phase 1 has two distinct gates. Gate 1a checks only synthetic flow-matching and
-MMD objective wiring. It deliberately does not instantiate ESM2 conditioning,
-create context or target-cluster splits, load a STATE artifact, or call the
-centered-residual compositor. Gate 1b, which is not yet complete, must run a
-small single-H100 adapter with continuous ESM2 perturbation conditions, one
-held context, one held target cluster, and an authenticated immutable
-`state_effect_weight=1.0` artifact. Gate 1b must verify finite
-forward/backward passes, deterministic restart, and no train/validation
-identity overlap before compact training is allowed.
+Phase 1 has three distinct gates. Gate 1a checks only synthetic flow-matching
+and MMD objective wiring. It deliberately does not instantiate target
+conditioning, create context or target-cluster splits, load a STATE artifact,
+or call the centered-residual compositor. Gate 1b denotes complete upstream
+feature-derivation provenance and remains false because Arc did not publish the
+required model, sequence mapping, and pooling lineage. Gate 1c authenticates
+Arc's official opaque feature bytes and permits the deterministic whole-cluster
+split without asserting Gate 1b. A separate future single-H100 adapter must
+then consume, rather than reconstruct, the immutable Gate 1c manifest and
+preflight with continuous target conditions and the authenticated
+`state_effect_weight=1.0` artifact. It must verify finite forward/backward
+passes, deterministic restart, and no train/validation identity overlap before
+compact training can be enabled.
 
-The historical synthetic objective-contract portion completed on one NVIDIA H100 80 GB as
-Slurm job `861790` in four seconds. It passed all 17 checks, used 67,563,520
+The historical synthetic objective-contract portion completed on one NVIDIA
+H100 80 GB as Slurm job `861798` in four seconds. It passed all 17 checks, used 67,563,520
 bytes of peak allocated GPU memory, and produced finite CFM, MMD, total-loss,
-gradient, and post-step parameter values. The registered configuration was
-subsequently hardened with fail-closed ESM2 provenance and residual-identity
-contracts, so this run is explicitly superseded and a fresh H100 run is
-required. It established historical objective wiring and GPU compatibility
-only; it is not evidence of current-config validity or prediction quality. The
+gradient, and post-step parameter values. Its receipt binds the then-registered
+configuration SHA-256 and supersedes job `861790`. The registered configuration,
+project wrapper, and launcher have since changed; the result is therefore stale
+for the current contract and a fresh H100 run is required. The historical run
+validated objective wiring and GPU compatibility only; it is not evidence of
+prediction quality. The
 sanitized receipt is tracked at
 `results/scdfm_v7/h100_contract_smoke.json`.
+The current wrapper parses the configuration from the exact bytes read and
+hashed through one no-follow file descriptor, eliminating a separate
+path-reopen window; this stronger claim remains pending H100 execution.
+
+The synthetic contract intentionally uses the project STATE environment
+(PyTorch 2.13.0+cu130), while released-checkpoint reconstruction uses the
+isolated scDFM environment (PyTorch 2.7.1+cu126). Their receipts identify these
+distinct roles; neither environment attests the other.
 
 Diagnostic job `861750` first exposed an environment conflict: loading the
 cluster CUDA 12.6 module placed system cuDNN 9.5 ahead of the cuDNN 9.20 bundled
 with the pinned PyTorch wheel. The corrected launcher intentionally uses the
 Slurm NVIDIA driver and the wheel-bundled CUDA/cuDNN runtime.
 
-The original released-checkpoint compatibility test completed as Slurm job
-`861784` in seven seconds on one NVIDIA H100 80 GB. It authenticated the exact
+The hardened released-checkpoint compatibility test completed as Slurm job
+`861799` in eight seconds on one NVIDIA H100 80 GB. It authenticated the exact
 source, checkpoint, and 5,033-token Norman vocabulary; instantiated the
 unmodified 60,359,169-element upstream model; and loaded all 219 model tensors
 strictly with no missing or unexpected keys. The loaded file descriptor was
@@ -324,15 +450,17 @@ did not read the released split pickle. Its continuous outputs ranged from
 `-2.4886429` to `2.0936260`, reinforcing that the native model output is not a
 valid nonnegative raw-count submission. The sanitized result is
 [`results/scdfm_v7/h100_released_checkpoint_smoke.json`](../results/scdfm_v7/h100_released_checkpoint_smoke.json).
-That historical run verified only that the imported module path was below the
-authenticated worktree; it predates the stronger immutable Git-object loader
-and is therefore explicitly superseded as an executable-source provenance
-attestation. The current launcher snapshots every file below `src` from the
+The launcher snapshots every file below `src` from the
 pinned commit, verifies each Git blob ID, executes upstream modules only from
-those in-memory bytes, and records SHA-256 for every executed module. A fresh
-H100 run is required before the hardened released-checkpoint gate can pass.
-Neither the historical result nor a future hardened rerun is evidence of
+those in-memory bytes, and records SHA-256 for every executed module. All 11
+receipt checks passed with empty stderr, so job `861799` supersedes job
+`861784`. Neither result is evidence of
 biological or leaderboard performance.
+
+The immutable-byte claim is limited to executed upstream scDFM modules below
+`src`. The current raw receipts do not embed the project wrapper commit or the
+Slurm-launcher digest; tracked log hashes support post-run review but do not
+replace runtime self-attestation of those local files.
 
 ### Phase 2: compact training
 

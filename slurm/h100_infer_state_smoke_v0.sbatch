@@ -18,6 +18,8 @@ set -euo pipefail
 readonly PROJECT_DIR="${VCC_PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$(pwd)}}"
 readonly PYTHON_BIN="$PROJECT_DIR/.venv-state/bin/python"
 readonly MODEL_DIR="$PROJECT_DIR/artifacts/state_runs/state_sm_smoke_v0"
+readonly CHECKPOINT_EXPECTED_SHA256="4ed84cd9fdb7574004602d7326225af302ecae90cbc123b3d2176fb771206f1d"
+readonly PERTURBATION_MAP_EXPECTED_SHA256="7c508118fdbcc5879a6a1b3f814d29ad4b903ee26077079ff61584e2a696d2dd"
 readonly OUTPUT_NPZ="$PROJECT_DIR/artifacts/state_smoke_effect_prior_pseudobulk_v3.npz"
 readonly OUTPUT_JSON="$PROJECT_DIR/artifacts/state_smoke_effect_prior_pseudobulk_v3.json"
 
@@ -59,6 +61,8 @@ nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv,nohead
 "$PYTHON_BIN" scripts/infer_state_effect_prior.py \
   --model-dir "$MODEL_DIR" \
   --checkpoint best.ckpt \
+  --checkpoint-expected-sha256 "$CHECKPOINT_EXPECTED_SHA256" \
+  --perturbation-map-expected-sha256 "$PERTURBATION_MAP_EXPECTED_SHA256" \
   --device cuda \
   --require-cuda \
   --require-h100 \

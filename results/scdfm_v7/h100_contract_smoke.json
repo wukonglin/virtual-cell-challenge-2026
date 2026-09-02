@@ -1,36 +1,49 @@
 {
-  "schema": "vcc-scdfm-contract-smoke-sanitized-v1",
-  "status": "superseded",
-  "historical_status": "passed",
-  "supersession": {
-    "reason": "The registered V7 configuration changed after this run to add fail-closed ESM2 provenance and stronger residual identity contracts.",
-    "historical_config_sha256": "24911ddb4e916cd1cb8dc7ec7ee3dc14282e074feab625be8668651744213613",
-    "required_current_config_sha256": "257b28a8b5423154c772cf61493d7fd98bb73d887e35e11b2b1c52f9e7e99bab",
-    "current_config_authenticated": false,
-    "fresh_h100_rerun_required": true,
-    "submission_ready": false
-  },
+  "schema": "vcc-scdfm-contract-smoke-sanitized-v2",
+  "status": "historical_pass_current_rerun_required",
   "scope": {
     "synthetic_data_only": true,
+    "challenge_expression_read": false,
+    "public_expression_read": false,
     "model_performance_evaluation": false,
     "official_submission_artifact": false
   },
-  "historical_job": {
-    "slurm_job_id": "861790",
+  "job": {
+    "slurm_job_id": "861798",
     "state": "COMPLETED",
     "exit_code": "0:0",
     "elapsed": "00:00:04",
+    "node": "c0005",
     "gpu": "NVIDIA H100 80GB HBM3",
     "compute_capability": "9.0",
     "peak_memory_allocated_bytes": 67563520,
-    "receipt_sha256": "6a5e3e9c048a0627f85536542598d8fa2945dce517f777a8efc8cb8b0ea2240d"
+    "peak_memory_reserved_bytes": 69206016,
+    "receipt_sha256": "2ba5ff291b785d91b939735763a7ab1143ec5089d27f251cfa1a22914badffae",
+    "stdout_sha256": "494a70b38f2ddc4b6cda41178ac99c86962961dbc8d1d145f9ae8b2c7ecd8cda",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "configuration": {
-    "sha256": "24911ddb4e916cd1cb8dc7ec7ee3dc14282e074feab625be8668651744213613",
+    "sha256": "257b28a8b5423154c772cf61493d7fd98bb73d887e35e11b2b1c52f9e7e99bab",
     "seed": 20260901,
     "state_effect_weight": 1.0,
     "mmd_weight": 0.5,
     "mmd_kernel_scales": [0.5, 1.0, 2.0, 4.0]
+  },
+  "current_applicability": {
+    "status": "stale",
+    "configuration_matches_current": false,
+    "fresh_h100_rerun_required": true,
+    "current_configuration_sha256": "f4f20f3b86002d74e7f3d44837eedd5c7dd270dc3f9ab5adae052484fad3bf6a",
+    "current_project_wrapper_sha256": "e1e4130cd0766bcea2c73a542ea0a9e07e8630af3dec956b54d3fb6f61f040cc",
+    "current_slurm_launcher_sha256": "d71d2282bcaefccf724fa0f16dd17836074696ab3ad1990501fb9ebca79c8005",
+    "reason": "The registered configuration, project wrapper, and launcher changed after this job completed. The historical runtime checks remain valid only for the bytes recorded by job 861798."
+  },
+  "software": {
+    "python": "3.11.13",
+    "torch": "2.13.0+cu130",
+    "torch_cuda_runtime": "13.0",
+    "cudnn": 92000,
+    "environment_role": "project_state_contract_environment"
   },
   "losses": {
     "cfm_velocity_mse": 1.1446213722229004,
@@ -43,15 +56,20 @@
     "all_17_contract_checks_passed": true,
     "finite_losses_gradients_and_parameters": true,
     "h100_detected": true,
+    "runtime_config_sha256_matched_then_registered_config": true,
     "synthetic_state_effect_scale_bound_to_one": true,
     "absolute_scdfm_output_forbidden": true,
     "context_target_residual_centering_required": true,
-    "mmd_weight_separately_bound": true
+    "mmd_weight_separately_bound": true,
+    "stderr_empty": true
   },
-  "environment_correction": {
-    "diagnostic_job_id": "861750",
-    "diagnostic_state": "FAILED",
-    "cause": "The CUDA 12.6 module prepended system cuDNN 9.5 ahead of the PyTorch-bundled cuDNN 9.20.",
-    "resolution": "Do not load a CUDA module; use the Slurm NVIDIA driver with the PyTorch-bundled CUDA and cuDNN runtime."
-  }
+  "supersedes": {
+    "slurm_job_id": "861790",
+    "reason": "The prior job predates the final fail-closed ESM2 and residual-identity contracts."
+  },
+  "provenance_limitations": {
+    "project_wrapper_git_commit_embedded_at_runtime": false,
+    "slurm_launcher_sha256_embedded_at_runtime": false
+  },
+  "interpretation": "Job 861798 proved that its then-registered synthetic objective contract executed deterministically with finite gradients on one H100. Subsequent configuration, wrapper, and launcher changes require a fresh H100 run before making a current-contract claim. This does not train a biological model, generate a VCC prediction, or establish leaderboard quality."
 }

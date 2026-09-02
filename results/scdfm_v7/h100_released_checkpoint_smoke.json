@@ -1,15 +1,6 @@
 {
   "schema": "vcc-scdfm-released-checkpoint-smoke-sanitized-v2",
-  "status": "superseded",
-  "historical_status": "passed",
-  "historical_receipt_schema": "vcc-scdfm-released-checkpoint-smoke-v1",
-  "required_current_receipt_schema": "vcc-scdfm-released-checkpoint-smoke-v2",
-  "supersession": {
-    "reason": "The historical run verified a mutable worktree module path rather than executing from immutable pinned Git-object bytes.",
-    "executed_from_verified_git_object_snapshot": false,
-    "hardened_h100_rerun_required": true,
-    "submission_ready": false
-  },
+  "status": "passed",
   "scope": {
     "synthetic_expression_only": true,
     "dummy_all_false_graph": true,
@@ -17,21 +8,42 @@
     "official_submission_artifact": false
   },
   "job": {
-    "slurm_job_id": "861784",
+    "slurm_job_id": "861799",
     "state": "COMPLETED",
     "exit_code": "0:0",
-    "elapsed": "00:00:07",
+    "elapsed": "00:00:08",
+    "node": "c0005",
     "gpu": "NVIDIA H100 80GB HBM3",
     "compute_capability": "9.0",
-    "receipt_sha256": "6e26abf8fc75cab45dd3688c3fe9fff7faefeaaeca201fca23dcd72853a986d8"
+    "receipt_sha256": "d627249a5c89aec92fb72635fb7f27757e1afa8b68c1fa649d60381fc6abef81",
+    "stdout_sha256": "4db2ed29536f2f0f44de7683f7b573b8aef4ca128b210ea3f7cf14ef0f003a06",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "authenticated_inputs": {
     "source_commit": "2cf6bca1f044e74c4e1dc586892c0495880cf125",
     "source_tree": "a04130b07020505a609158cbe31e9e65083c0d79",
+    "source_blob_count": 55,
+    "python_module_count": 53,
     "checkpoint_sha256": "5730a05918e2e727f8a558f21db23ae793a8deb74af5c28b905d852af92354d7",
     "checkpoint_iteration": 70000,
     "norman_vocab_sha256": "d6d540e3a9f0dae50e4a372a3e17bdc7d95e8b84f795290e13c8f3fa868e15f4",
     "norman_vocab_tokens": 5033
+  },
+  "software": {
+    "python": "3.11.13",
+    "torch": "2.7.1+cu126",
+    "torch_cuda_runtime": "12.6",
+    "cudnn": 90501,
+    "environment_role": "isolated_scdfm_environment"
+  },
+  "source_execution": {
+    "loader": "verified_in_memory_git_blob_loader",
+    "snapshot_scope": "complete_src_tree",
+    "mutable_worktree_imported": false,
+    "all_git_blob_sha1_values_verified": true,
+    "all_loaded_src_modules_byte_bound": true,
+    "loaded_module_audit_passed": true,
+    "executed_module_count": 4
   },
   "strict_model_load": {
     "model_state_tensors": 219,
@@ -40,9 +52,6 @@
     "missing_keys": [],
     "unexpected_keys": [],
     "checkpoint_rehashed_on_loaded_descriptor": true,
-    "loaded_checkpoint_sha256_matches_audit": true,
-    "upstream_module_path_verified_inside_authenticated_source": true,
-    "upstream_module_bytes_bound_to_pinned_git_blobs": false,
     "optimizer_state_restored": false,
     "scheduler_state_restored": false,
     "split_pickle_read": false
@@ -58,5 +67,22 @@
     "repeated_eval_forward_bitwise_identical": true,
     "all_values_finite": true
   },
-  "interpretation": "This historical run demonstrated strict weight compatibility on one H100 but did not bind executed source bytes to immutable Git blobs. It is superseded and cannot satisfy the current hardened source-provenance gate; it also does not demonstrate CRISPRi, unseen-context, full-gene-axis, raw-count, or leaderboard performance."
+  "checks": {
+    "all_11_receipt_checks_passed": true,
+    "immutable_git_object_source_execution": true,
+    "strict_checkpoint_load": true,
+    "deterministic_finite_forward": true,
+    "h100_detected": true,
+    "stderr_empty": true
+  },
+  "supersedes": {
+    "slurm_job_id": "861784",
+    "reason": "The prior run verified a mutable worktree path rather than executing byte-bound Git objects."
+  },
+  "provenance_limitations": {
+    "immutable_byte_execution_scope": "upstream_scdfm_src_only",
+    "project_wrapper_git_commit_embedded_at_runtime": false,
+    "slurm_launcher_sha256_embedded_at_runtime": false
+  },
+  "interpretation": "The exact released model and weights execute reproducibly from immutable Git-object bytes on one H100. This synthetic compatibility test does not demonstrate CRISPRi, unseen-context, full-gene-axis, raw-count, or leaderboard performance."
 }

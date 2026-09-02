@@ -16,6 +16,8 @@ set -euo pipefail
 readonly PROJECT_DIR="${VCC_PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$(pwd)}}"
 readonly PYTHON_BIN="$PROJECT_DIR/.venv-state/bin/python"
 readonly MODEL_DIR="$PROJECT_DIR/artifacts/state_runs/state_sm_20k_v0"
+readonly CHECKPOINT_EXPECTED_SHA256="e407e51855792d0dc85483a977f63497d9ac9a6893db360d840c7d9ce556780d"
+readonly PERTURBATION_MAP_EXPECTED_SHA256="6ab08c62dd117012b386051a9f375505abcd17b88ed76f0ad232199624291170"
 readonly CANDIDATE_VERSION="${VCC_CANDIDATE_VERSION:-v3}"
 case "$CANDIDATE_VERSION" in
   v3|v4)
@@ -66,7 +68,7 @@ trap 'rm -rf -- "$task_scratch"' EXIT
 
 for required_path in \
   "$PYTHON_BIN" \
-  "$MODEL_DIR/checkpoints/selected.ckpt" \
+  "$MODEL_DIR/checkpoints/step16000.ckpt" \
   "$MODEL_DIR/checkpoints/selected_checkpoint.json" \
   "$MODEL_DIR/pert_onehot_map.pt" \
   "$MODEL_DIR/var_dims.pkl" \
@@ -108,7 +110,9 @@ nvidia-smi --query-gpu=name,uuid,memory.total,driver_version --format=csv,nohead
 
 "$PYTHON_BIN" scripts/generate_state_scorer_aware_counts.py \
   --model-dir "$MODEL_DIR" \
-  --checkpoint checkpoints/selected.ckpt \
+  --checkpoint checkpoints/step16000.ckpt \
+  --checkpoint-expected-sha256 "$CHECKPOINT_EXPECTED_SHA256" \
+  --perturbation-map-expected-sha256 "$PERTURBATION_MAP_EXPECTED_SHA256" \
   --selection-json "$MODEL_DIR/checkpoints/selected_checkpoint.json" \
   --controls-dir dataset/controls \
   --support-genes dataset/state_support/extracted/gene_names.csv \

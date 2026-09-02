@@ -16,9 +16,10 @@ import json
 import math
 import os
 import platform
+import secrets
 import socket
+import stat
 import sys
-import tempfile
 import tomllib
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -31,6 +32,7 @@ from torch import Tensor, nn
 
 SCHEMA = "vcc-scdfm-contract-smoke-receipt-v1"
 DEFAULT_CONFIG = Path("configs/scdfm/vcc2026_v7_gamma1.toml")
+DEFAULT_LAUNCHER = Path("slurm/h100_scdfm_contract_smoke.sbatch")
 STATE_WEIGHT_KEY = "anchor.state_effect_weight"
 SCDFM_MMD_WEIGHT_KEY = "model.mmd_weight"
 MMD_ESTIMATOR = "unbiased_multi_kernel_gaussian_rbf"
@@ -104,22 +106,93 @@ def _finite_number(value: Any, key: str) -> float:
     return number
 
 
-def sha256_file(path: Path, chunk_size: int = 1 << 20) -> str:
-    """Return the SHA-256 digest of a regular file."""
+def read_and_describe_regular_file(
+    path: Path, label: str
+) -> tuple[dict[str, Any], bytes]:
+    """Read and hash one regular file through one no-follow descriptor."""
 
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        while block := handle.read(chunk_size):
+    absolute = Path(os.path.abspath(os.fspath(path.expanduser())))
+    parts = absolute.parts
+    _require(len(parts) >= 2 and parts[0] == os.sep, f"Invalid {label} path")
+    directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    directory_flags |= getattr(os, "O_NOFOLLOW", 0)
+    file_flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
+    file_flags |= getattr(os, "O_NOFOLLOW", 0)
+    directory_descriptor: int | None = None
+    try:
+        directory_descriptor = os.open(os.sep, directory_flags)
+        for component in parts[1:-1]:
+            next_descriptor = os.open(
+                component,
+                directory_flags,
+                dir_fd=directory_descriptor,
+            )
+            os.close(directory_descriptor)
+            directory_descriptor = next_descriptor
+        descriptor = os.open(
+            parts[-1],
+            file_flags,
+            dir_fd=directory_descriptor,
+        )
+    except OSError as error:
+        raise ContractSmokeError(f"Unable to open {label}: {error}") from error
+    finally:
+        if directory_descriptor is not None:
+            os.close(directory_descriptor)
+
+    with os.fdopen(descriptor, "rb") as handle:
+        before = os.fstat(handle.fileno())
+        _require(stat.S_ISREG(before.st_mode), f"{label} is not a regular file")
+        digest = hashlib.sha256()
+        chunks: list[bytes] = []
+        while block := handle.read(1 << 20):
             digest.update(block)
-    return digest.hexdigest()
+            chunks.append(block)
+        after = os.fstat(handle.fileno())
+    identity_before = (
+        before.st_dev,
+        before.st_ino,
+        before.st_size,
+        before.st_mtime_ns,
+        before.st_ctime_ns,
+    )
+    identity_after = (
+        after.st_dev,
+        after.st_ino,
+        after.st_size,
+        after.st_mtime_ns,
+        after.st_ctime_ns,
+    )
+    _require(identity_before == identity_after, f"{label} changed while hashing")
+    payload = b"".join(chunks)
+    _require(len(payload) == before.st_size, f"{label} size changed while reading")
+    return (
+        {
+            "filename": absolute.name,
+            "size_bytes": before.st_size,
+            "sha256": digest.hexdigest(),
+            "regular_file": True,
+            "symlink_components_rejected": True,
+            "bytes_read_and_hashed_from_same_descriptor": True,
+        },
+        payload,
+    )
 
 
-def load_smoke_config(path: Path) -> SmokeConfig:
-    """Load and validate the registered V7 scDFM contract configuration."""
+def describe_regular_file(path: Path, label: str) -> dict[str, Any]:
+    """Hash one regular file while rejecting symlinks in every path component."""
 
-    _require(path.is_file(), f"Missing scDFM contract config: {path}")
-    with path.open("rb") as handle:
-        payload = tomllib.load(handle)
+    description, _ = read_and_describe_regular_file(path, label)
+    return description
+
+
+def parse_smoke_config(payload_bytes: bytes) -> SmokeConfig:
+    """Parse and validate already authenticated V7 configuration bytes."""
+
+    try:
+        payload = tomllib.loads(payload_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
+        raise ContractSmokeError(f"Invalid V7 configuration bytes: {error}") from error
 
     experiment = _section(payload, "experiment")
     anchor = _section(payload, "anchor")
@@ -211,6 +284,13 @@ def load_smoke_config(path: Path) -> SmokeConfig:
         absolute_scdfm_output_allowed=False,
         center_residual_by_context_target=True,
     )
+
+
+def load_smoke_config(path: Path) -> SmokeConfig:
+    """Safely read, authenticate, and validate one V7 configuration file."""
+
+    _, payload = read_and_describe_regular_file(path, "V7 configuration")
+    return parse_smoke_config(payload)
 
 
 def _pairwise_squared_distance(left: Tensor, right: Tensor) -> Tensor:
@@ -399,13 +479,31 @@ def run_contract_smoke(
     require_h100: bool = False,
     batch_size: int = 8,
     synthetic_gene_count: int = 32,
+    launcher_path: Path | None = None,
 ) -> dict[str, Any]:
     """Execute one deterministic synthetic training step and return a receipt."""
 
     _require(batch_size >= 2, "batch_size must be at least two")
     _require(synthetic_gene_count >= 2, "synthetic_gene_count must be at least two")
-    config_path = config_path.resolve()
-    config = load_smoke_config(config_path)
+    config_path = Path(os.path.abspath(os.fspath(config_path.expanduser())))
+    implementation_path = Path(__file__)
+    configuration_description, configuration_bytes = read_and_describe_regular_file(
+        config_path,
+        "V7 configuration",
+    )
+    registered_files = {
+        "configuration": configuration_description,
+        "implementation": describe_regular_file(
+            implementation_path,
+            "contract-smoke implementation",
+        ),
+    }
+    if launcher_path is not None:
+        registered_files["launcher"] = describe_regular_file(
+            launcher_path,
+            "contract-smoke Slurm launcher",
+        )
+    config = parse_smoke_config(configuration_bytes)
     device = _resolve_device(
         requested_device,
         require_cuda=require_cuda,
@@ -505,7 +603,22 @@ def run_contract_smoke(
             rel_tol=1e-6,
             abs_tol=1e-7,
         )
+        registered_files_after = {
+            "configuration": describe_regular_file(config_path, "V7 configuration"),
+            "implementation": describe_regular_file(
+                implementation_path,
+                "contract-smoke implementation",
+            ),
+        }
+        if launcher_path is not None:
+            registered_files_after["launcher"] = describe_regular_file(
+                launcher_path,
+                "contract-smoke Slurm launcher",
+            )
+        registered_files_unchanged = registered_files_after == registered_files
+
         checks = {
+            "configuration_was_parsed_from_authenticated_descriptor_bytes": True,
             "config_disallows_official_submission": (
                 config.official_submission_allowed is False
             ),
@@ -549,6 +662,9 @@ def run_contract_smoke(
                     or "H100" in torch.cuda.get_device_name(device).upper()
                 )
             ),
+            "registered_config_implementation_and_launcher_are_unchanged": (
+                registered_files_unchanged
+            ),
         }
 
         device_metadata = _device_metadata(device)
@@ -573,13 +689,15 @@ def run_contract_smoke(
                 "model_performance_evaluation": False,
             },
             "configuration": {
-                "path": str(config_path),
-                "sha256": sha256_file(config_path),
+                "filename": config_path.name,
+                "size_bytes": registered_files["configuration"]["size_bytes"],
+                "sha256": registered_files["configuration"]["sha256"],
                 "experiment_schema": config.experiment_schema,
                 "experiment_name": config.experiment_name,
                 "seed": config.seed,
                 "flow_path": config.flow_path,
             },
+            "registered_files": registered_files,
             "weight_bindings": {
                 "frozen_state_anchor_scale": {
                     "config_key": STATE_WEIGHT_KEY,
@@ -618,42 +736,77 @@ def run_contract_smoke(
         torch.use_deterministic_algorithms(previous_deterministic)
 
 
-def write_json_atomic_no_overwrite(path: Path, payload: Mapping[str, Any]) -> None:
-    """Atomically publish a complete JSON file without replacing any path.
+def _open_or_create_directory_no_follow(path: Path) -> int:
+    """Open or create a directory using dirfds and reject every symlink."""
 
-    A fully flushed sibling temporary file is hard-linked to the destination.
-    Creating the hard link is atomic and fails with ``FileExistsError`` if any
-    concurrent writer has already claimed the destination.
-    """
-
-    path = path.resolve()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists():
-        raise FileExistsError(f"Refusing to overwrite receipt: {path}")
-
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
-    )
-    temporary = Path(temporary_name)
+    absolute = Path(os.path.abspath(os.fspath(path.expanduser())))
+    parts = absolute.parts
+    _require(len(parts) >= 1 and parts[0] == os.sep, "Invalid receipt directory")
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(os.sep, flags)
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        for component in parts[1:]:
+            try:
+                next_descriptor = os.open(component, flags, dir_fd=descriptor)
+            except FileNotFoundError:
+                os.mkdir(component, mode=0o755, dir_fd=descriptor)
+                next_descriptor = os.open(component, flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = next_descriptor
+    except Exception:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
+def write_json_atomic_no_overwrite(path: Path, payload: Mapping[str, Any]) -> None:
+    """Publish canonical JSON through a symlink-safe dirfd without replacing."""
+
+    path = Path(os.path.abspath(os.fspath(path.expanduser())))
+    _require(path.name not in {"", ".", ".."}, "Invalid receipt filename")
+    parent_descriptor = _open_or_create_directory_no_follow(path.parent)
+    temporary_name = f".{path.name}.{os.getpid()}.{secrets.token_hex(12)}.tmp"
+    temporary_created = False
+    try:
+        try:
+            os.stat(path.name, dir_fd=parent_descriptor, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            raise FileExistsError(f"Refusing to overwrite receipt: {path}")
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+        file_descriptor = os.open(
+            temporary_name,
+            flags,
+            0o600,
+            dir_fd=parent_descriptor,
+        )
+        temporary_created = True
+        with os.fdopen(file_descriptor, "w", encoding="utf-8") as handle:
             json.dump(payload, handle, indent=2, sort_keys=True, allow_nan=False)
             handle.write("\n")
             handle.flush()
             os.fsync(handle.fileno())
-        os.chmod(temporary, 0o644)
         try:
-            os.link(temporary, path)
+            os.link(
+                temporary_name,
+                path.name,
+                src_dir_fd=parent_descriptor,
+                dst_dir_fd=parent_descriptor,
+                follow_symlinks=False,
+            )
         except FileExistsError as error:
             raise FileExistsError(f"Refusing to overwrite receipt: {path}") from error
-        directory_flag = getattr(os, "O_DIRECTORY", 0)
-        directory_descriptor = os.open(path.parent, os.O_RDONLY | directory_flag)
-        try:
-            os.fsync(directory_descriptor)
-        finally:
-            os.close(directory_descriptor)
+        os.fsync(parent_descriptor)
     finally:
-        temporary.unlink(missing_ok=True)
+        if temporary_created:
+            try:
+                os.unlink(temporary_name, dir_fd=parent_descriptor)
+            except FileNotFoundError:
+                pass
+        os.close(parent_descriptor)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -664,6 +817,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         )
     )
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    parser.add_argument(
+        "--launcher",
+        type=Path,
+        default=None,
+        help="Optional Slurm launcher whose exact bytes are bound into the receipt.",
+    )
     parser.add_argument("--output-json", type=Path, required=True)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--require-cuda", action="store_true")
@@ -682,6 +841,7 @@ def main(argv: Sequence[str] | None = None) -> dict[str, Any]:
         require_h100=args.require_h100,
         batch_size=args.batch_size,
         synthetic_gene_count=args.synthetic_gene_count,
+        launcher_path=args.launcher,
     )
     write_json_atomic_no_overwrite(args.output_json, receipt)
     print(json.dumps(receipt, indent=2, sort_keys=True, allow_nan=False))

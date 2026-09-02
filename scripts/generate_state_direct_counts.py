@@ -55,6 +55,7 @@ from infer_state_effect_prior import (  # noqa: E402
     load_perturbation_embeddings,
     load_state_model,
     load_var_dims,
+    parse_expected_sha256,
     read_single_column,
     read_targets,
     require,
@@ -88,6 +89,18 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("selected.ckpt"),
         help="Validation-selected checkpoint, resolved below MODEL_DIR/checkpoints.",
+    )
+    parser.add_argument(
+        "--checkpoint-expected-sha256",
+        type=parse_expected_sha256,
+        required=True,
+        help="Required pre-registered SHA-256 for the selected STATE checkpoint.",
+    )
+    parser.add_argument(
+        "--perturbation-map-expected-sha256",
+        type=parse_expected_sha256,
+        required=True,
+        help="Required pre-registered SHA-256 for pert_onehot_map.pt.",
     )
     parser.add_argument(
         "--selection-json",
@@ -945,6 +958,10 @@ def main() -> None:
     for path in (checkpoint, selection_path, pert_map_path, var_dims_path):
         require(path.is_file(), f"Required STATE input is missing: {path}")
     checkpoint_hash = sha256_file(checkpoint)
+    require(
+        checkpoint_hash == args.checkpoint_expected_sha256,
+        "STATE checkpoint differs from --checkpoint-expected-sha256",
+    )
     selection = validate_selection_manifest(selection_path, checkpoint, checkpoint_hash)
 
     controls_dir = args.controls_dir.resolve()
@@ -991,7 +1008,12 @@ def main() -> None:
     require(all(target in support_gene_index for target in targets), "Target missing from support axis")
 
     var_dims = load_var_dims(var_dims_path, support_genes)
-    embeddings = load_perturbation_embeddings(pert_map_path, official_targets)
+    embeddings, perturbation_map_load = load_perturbation_embeddings(
+        pert_map_path,
+        official_targets,
+        expected_sha256=args.perturbation_map_expected_sha256,
+        return_descriptor=True,
+    )
     device = torch.device(args.device)
     if args.require_cuda:
         require(device.type == "cuda", "--require-cuda requires a CUDA device")
@@ -1007,7 +1029,13 @@ def main() -> None:
         require(not args.require_h100, "--require-h100 requires CUDA")
         device_name = "CPU"
     print(f"Loading validation-selected checkpoint: {checkpoint}", flush=True)
-    model = load_state_model(checkpoint, device)
+    model, checkpoint_load = load_state_model(
+        checkpoint,
+        device,
+        expected_sha256=args.checkpoint_expected_sha256,
+        expected_gene_names=support_genes,
+        return_descriptor=True,
+    )
     model_info = validate_model(model, args.model_chunk_size)
     print(
         f"Loaded {model_info['parameters']:,} parameters on {device_name}; "
@@ -1322,12 +1350,9 @@ def main() -> None:
                 "repository_commit": git_commit(Path(__file__).resolve().parents[1]),
                 "state_source_commit": git_commit(Path(inspect.getfile(type(model))).resolve().parent),
                 "script": describe_file(Path(__file__).resolve()),
-                "checkpoint": {
-                    **describe_file(checkpoint, hash_file=False),
-                    "sha256": checkpoint_hash,
-                },
+                "checkpoint": checkpoint_load,
                 "checkpoint_selection": describe_file(selection_path),
-                "perturbation_map": describe_file(pert_map_path),
+                "perturbation_map": perturbation_map_load,
                 "var_dims": describe_file(var_dims_path),
                 "state_config": describe_file(config_path) if config_path.is_file() else None,
                 "current_gene_axis": describe_file(current_gene_path),
