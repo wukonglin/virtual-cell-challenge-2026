@@ -1,0 +1,2 @@
+# Separate tracking environment: do not mutate pinned model environments.
+wandb==0.19.11

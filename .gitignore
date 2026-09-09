@@ -74,3 +74,8 @@ vcc-*.err
 core.*
 *.tmp
 *.part
+
+# W&B local run buffers and journals (sync deliberately; never commit)
+wandb/
+.wandb/
+.venv-tracking.install.lock
