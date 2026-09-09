@@ -190,3 +190,28 @@ The scoped GitHub publication branch is
 `codex/anvil-lingshu-public-v3-20260909`, based on upstream main `21011ca`.
 The original BioHPC worktree and its unrelated edits are preserved; datasets,
 weights, environment files, credentials, and private upload state are excluded.
+
+## Verified outcome: 2026-09-09 15:09 EDT
+
+The earlier pending record is historical. Job **20532815** ran on
+`h001.anvil.rcac.purdue.edu` from 14:03:03 for 9 minutes 49 seconds and ended
+`FAILED`, exit `1:0`. This was a scientific-gate failure, not an infrastructure
+failure: the CUDA tensor probe passed on an NVIDIA H100 80GB HBM3, all 38 tests
+passed with zero skips, and true/shuffled/constant training each completed
+4,000 steps. Final gate step `.11` returned 1; comparison step `.12` completed.
+
+True-Lingshu public-development centroid MSE was 0.06128875 versus unchanged
+controls 0.05635522 in RPE1 (+8.8%), and 0.07529116 versus 0.06031950 on held-out
+K562 targets (+24.8%). Both MMD comparisons also failed. True features slightly
+beat shuffled features but lost to constant features in all four metrics.
+Constant features themselves failed K562 MMD. No challenge submission was made.
+
+Runtime, comparison, per-arm provenance/diagnostics and selected checkpoints
+were recovered to BioHPC under
+`artifacts/lingshu_scdfm/anvil_effect_v3_expanded/`; all three checkpoint hashes
+match their training summaries. Anvil queue inspection found no active user
+jobs at 15:15 EDT. Do not resubmit this completed recipe unchanged.
+
+The next bounded experiment is the separately documented
+[public-only conditioning-v4 screen](LINGSHU_CONDITIONING_V4.md). It does not
+modify this experiment, its quality gates, or any historical outcome.
