@@ -132,6 +132,28 @@ def test_json_lines_reject_invalid_and_oversized_payloads():
         "train/global_step": 2, "train/mmd": -0.01}
 
 
+def test_biological_feature_metrics_and_quality_remain_allowlisted(tmp_path):
+    arms = ("esm2", "lingshu", "fusion", "esm2_shuffled_20260960",
+            "lingshu_shuffled_20260960", "fusion_shuffled_lingshu_20260960")
+    payload = {"mse": {**dict.fromkeys(arms, 0.1), "fusion_private_label": 9.0},
+               "decisions": {"esm2": {"conditioning_screen_passed": True},
+                             "lingshu": {"conditioning_screen_passed": False},
+                             "fusion": {"conditioning_screen_passed": False},
+                             "private_label": {"conditioning_screen_passed": True}}}
+    expected = {**{f"cv/mse/{arm}": 0.1 for arm in arms},
+                "quality/esm2_conditioning_screen_passed": 1,
+                "quality/lingshu_conditioning_screen_passed": 0,
+                "quality/fusion_conditioning_screen_passed": 0}
+    assert tracking.scalar_metrics(payload) == expected
+    sdk = FakeSDK()
+    tracker = tracking.TrainingTracker(tmp_path / "tracking", stage="pretrain", sdk=sdk)
+    tracker.log(expected)
+    tracker.finish(0)
+    logged = sdk.run.logged[0][0]
+    assert all(logged[key] == value for key, value in expected.items())
+    assert not any("private_label" in key for key in logged)
+
+
 def test_config_only_known_typed_flags_and_verified_hashes():
     command = ["python", "/private/train.py", "--steps", "20", "--learning-rate=1e-4",
                "--feature-mode", "true", "--token", "SECRET", "--data", "/private/data",

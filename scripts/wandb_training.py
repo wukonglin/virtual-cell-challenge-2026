@@ -32,6 +32,12 @@ NUMERIC_CONFIG = {"steps", "batch_size", "learning_rate", "seed", "validate_ever
 HASH_CONFIG = {"entrypoint_sha256", "cache_sha256", "embeddings_sha256", "parent_checkpoint_sha256"}
 DIAGNOSTICS = ("model_centroid_mse", "control_centroid_mse", "model_mmd2", "control_mmd2",
                "clamped_low_fraction", "clamped_high_fraction")
+BIOLOGICAL_FAMILIES = ("esm2", "lingshu", "fusion")
+
+
+def allowed_cv_arm(name):
+    return (name in ("true", "constant", "zero", *BIOLOGICAL_FAMILIES)
+            or bool(re.fullmatch(r"(?:shuffled_|esm2_shuffled_|lingshu_shuffled_|fusion_shuffled_lingshu_)[0-9]{8}", str(name))))
 
 
 def finite_scalar(value):
@@ -73,11 +79,17 @@ def scalar_metrics(payload):
     mse = payload.get("mse", {})
     if isinstance(mse, dict):
         for mode, value in mse.items():
-            if (mode in ("true", "constant", "zero") or re.fullmatch(r"shuffled_[0-9]{8}", str(mode))) and finite_scalar(value):
+            if allowed_cv_arm(mode) and finite_scalar(value):
                 result[f"cv/mse/{mode}"] = value
     decision = payload.get("decision", {})
     if isinstance(decision, dict) and type(decision.get("conditioning_screen_passed")) is bool:
         result["quality/conditioning_screen_passed"] = int(decision["conditioning_screen_passed"])
+    decisions = payload.get("decisions", {})
+    if isinstance(decisions, dict):
+        for family in BIOLOGICAL_FAMILIES:
+            item = decisions.get(family, {})
+            if isinstance(item, dict) and type(item.get("conditioning_screen_passed")) is bool:
+                result[f"quality/{family}_conditioning_screen_passed"] = int(item["conditioning_screen_passed"])
     # Strict schema and exact bool: generic comparison status=pass is NOT quality.
     if payload.get("schema") == "vcc-lingshu-scdfm-public-quality-preflight-v1":
         if payload.get("status") in ("pass", "fail"):
@@ -219,9 +231,10 @@ class TrainingTracker:
     def log(self, metrics):
         # Public callers must supply only metrics produced by the sanitizer.
         allowed = set(FIELDS.values()) | {"quality/conditioning_screen_passed", "quality/public_gate_passed"}
+        allowed |= {f"quality/{family}_conditioning_screen_passed" for family in BIOLOGICAL_FAMILIES}
         allowed |= {f"validation/{kind}/{key}" for kind in ("context", "target") for key in DIAGNOSTICS}
         metrics = {key: value for key, value in metrics.items()
-                   if (key in allowed or re.fullmatch(r"cv/mse/(true|constant|zero|shuffled_[0-9]{8})", key))
+                   if (key in allowed or (key.startswith("cv/mse/") and allowed_cv_arm(key[7:])))
                    and finite_scalar(value)}
         steps = {FIELDS[key] for key in ("step", "best_step", "last_step", "completed_repeat", "outer_fold")}
         metrics = {key: value for key, value in metrics.items()
