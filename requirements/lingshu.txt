@@ -1,0 +1,10 @@
+# Isolated Python 3.11 environment for frozen text-only Lingshu-7B extraction.
+# Install/run on an allocated compute node. No flash-attn build is required.
+torch==2.7.1
+torchvision==0.22.1
+transformers==4.52.1
+tokenizers==0.21.2
+huggingface-hub==0.31.4
+safetensors==0.5.3
+accelerate==1.7.0
+numpy==2.2.6
