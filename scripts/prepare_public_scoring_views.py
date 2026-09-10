@@ -154,16 +154,24 @@ def main() -> None:
             require(data.obs.index.is_unique, f"{label} cell IDs are not unique")
         control_contract = controls.uns.get("public_validation", {})
         truth_contract = truth.uns.get("public_validation", {})
+        control_sealed_profiles_present = control_contract.get(
+            "sealed_treated_profiles_present"
+        )
+        truth_sealed_profiles_present = truth_contract.get(
+            "sealed_treated_profiles_present"
+        )
         require(
             control_contract.get("schema") == DATA_SCHEMA
             and control_contract.get("role") == "controls-only-generator-input"
-            and control_contract.get("sealed_treated_profiles_present") is False,
+            and isinstance(control_sealed_profiles_present, (bool, np.bool_))
+            and not bool(control_sealed_profiles_present),
             "Controls input lacks the controls-only firewall role",
         )
         require(
             truth_contract.get("schema") == DATA_SCHEMA
             and truth_contract.get("role") == "sealed-scorer-input"
-            and truth_contract.get("sealed_treated_profiles_present") is True,
+            and isinstance(truth_sealed_profiles_present, (bool, np.bool_))
+            and bool(truth_sealed_profiles_present),
             "Truth input lacks the sealed-scorer role",
         )
         context_sets = {

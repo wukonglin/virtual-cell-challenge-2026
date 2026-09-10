@@ -4,16 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
-
-from generate_state_direct_counts import atomic_write_json
-from infer_state_effect_prior import describe_file, require
-
 
 SCHEMA = "vcc-public-validation-comparison-v1"
 NMAE_METRIC = "de_wilcoxon_lfc_nmae"
@@ -37,6 +35,45 @@ EMITTED_METRICS = (
 COMPLETE_EMITTED_METRICS = EMITTED_METRICS - {NMAE_METRIC}
 NAN_TOLERANT_METRICS = {FIDELITY_METRIC, REACH_METRIC}
 COHORT_OPTIONAL_METRICS = {NMAE_METRIC, FIDELITY_METRIC, REACH_METRIC}
+
+
+def require(condition: bool, message: str) -> None:
+    """Raise a scoring-summary contract error without GPU dependencies."""
+
+    if not condition:
+        raise RuntimeError(message)
+
+
+def sha256_file(path: Path, chunk_size: int = 8 << 20) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while block := handle.read(chunk_size):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def describe_file(path: Path, *, hash_file: bool = True) -> dict[str, Any]:
+    metadata = path.stat()
+    result: dict[str, Any] = {
+        "path": str(path.resolve()),
+        "size_bytes": metadata.st_size,
+        "mtime_ns": metadata.st_mtime_ns,
+    }
+    if hash_file:
+        result["sha256"] = sha256_file(path)
+    return result
+
+
+def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        with temporary.open("w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
 def parse_args() -> argparse.Namespace:

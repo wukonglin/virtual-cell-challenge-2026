@@ -18,7 +18,15 @@ unset PYTHONOPTIMIZE
 : "${VCC_OUTPUT_TAG:?Set VCC_OUTPUT_TAG to the generated candidate tag}"
 
 readonly PROJECT_DIR="${VCC_PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$(pwd)}}"
-readonly PYTHON_BIN="$PROJECT_DIR/.venv-state/bin/python"
+if [[ -n "${VCC_SCORE_PYTHON:-}" ]]; then
+  PYTHON_BIN="$VCC_SCORE_PYTHON"
+elif [[ -x "$PROJECT_DIR/.venv-score/bin/python" ]]; then
+  PYTHON_BIN="$PROJECT_DIR/.venv-score/bin/python"
+else
+  PYTHON_BIN="$PROJECT_DIR/.venv-state/bin/python"
+fi
+readonly PYTHON_BIN
+readonly CONTRACT_PYTHON="${VCC_CONTRACT_PYTHON:-$PROJECT_DIR/.venv-state/bin/python}"
 readonly PUBLIC_ROOT="${VCC_PUBLIC_V6_ROOT:-$PROJECT_DIR/artifacts/public_v6}"
 readonly CELL_EVAL_CHECKOUT="$PROJECT_DIR/external/cell-eval2"
 readonly EXPECTED_CELL_EVAL_COMMIT="5e64833518a6603a0301cbe28185d49c30f4a986"
@@ -50,6 +58,7 @@ readonly SPEC_JSON="$RUN_DIR/spec.json"
 readonly PREDICTION="$RUN_DIR/prediction.h5ad"
 readonly GENERATION_JSON="$RUN_DIR/generation.json"
 readonly VERIFICATION_JSON="$RUN_DIR/generation_verified.json"
+readonly TRANSPORT_VERIFIER="$PROJECT_DIR/scripts/materialize_public_candidate_transport.py"
 readonly CONTROLS="$PROJECT_DIR/dataset/public_v51/${CONTEXT_PREFIX}_controls_only.h5ad"
 readonly SEALED_TRUTH="$PROJECT_DIR/dataset/public_v51/${CONTEXT_PREFIX}_sealed_truth.h5ad"
 readonly PRED_VIEW="$SCORE_DIR/prediction_view.h5ad"
@@ -68,8 +77,10 @@ export PYTHONPATH="$PROJECT_DIR/external/cell-eval2/src${PYTHONPATH:+:$PYTHONPAT
 
 for required_path in \
   "$PYTHON_BIN" \
+  "$CONTRACT_PYTHON" \
   scripts/prepare_public_scoring_views.py \
   scripts/validate_public_cell_eval_run.py \
+  "$TRANSPORT_VERIFIER" \
   "$CELL_EVAL_CHECKOUT/pyproject.toml" \
   "$CELL_EVAL_CHECKOUT/src/cell_eval2/cli.py" \
   "$SPEC_JSON" \
@@ -77,7 +88,6 @@ for required_path in \
   "$GENERATION_JSON" \
   "$VERIFICATION_JSON" \
   "$CONTROLS" \
-  "$SEALED_TRUTH" \
   dataset/public_v51/common_genes.csv \
   dataset/public_v51/common_genes.json; do
   if [[ ! -r "$required_path" ]]; then
@@ -85,6 +95,14 @@ for required_path in \
     exit 3
   fi
 done
+if [[ ! -x "$PYTHON_BIN" ]]; then
+  echo "Scoring Python must be executable: $PYTHON_BIN" >&2
+  exit 3
+fi
+if [[ ! -x "$CONTRACT_PYTHON" ]]; then
+  echo "Candidate-contract Python must be executable: $CONTRACT_PYTHON" >&2
+  exit 3
+fi
 if [[ ! -d "$CELL_EVAL_CHECKOUT/.git" ]]; then
   echo "cell-eval2 checkout lacks Git metadata" >&2
   exit 3
@@ -129,8 +147,17 @@ if pdex_version != expected_pdex:
     raise RuntimeError(f"Unexpected pdex version: {pdex_version}")
 PY
 
-# This check happens before the scorer-only truth path is passed to any tool.
-"$PYTHON_BIN" - "$SPEC_JSON" "$GENERATION_JSON" "$VERIFICATION_JSON" "$PREDICTION" "$VCC_CONTEXT" "$VCC_OUTPUT_TAG" <<'PY'
+# A relocated Anvil reconstruction must first prove a byte-preserving,
+# path-only candidate transport. This command has no treated-truth argument.
+"$CONTRACT_PYTHON" "$TRANSPORT_VERIFIER" verify \
+  --project-dir "$PROJECT_DIR" \
+  --run-dir "$RUN_DIR" \
+  --expected-context "$VCC_CONTEXT" \
+  --expected-output-tag "$VCC_OUTPUT_TAG"
+
+# These candidate checks happen before the scorer-only truth path is opened or
+# passed to any tool.
+"$CONTRACT_PYTHON" - "$SPEC_JSON" "$GENERATION_JSON" "$VERIFICATION_JSON" "$PREDICTION" "$VCC_CONTEXT" "$VCC_OUTPUT_TAG" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -156,6 +183,7 @@ def sha256_file(path):
             digest.update(block)
     return digest.hexdigest()
 
+prediction_sha256 = sha256_file(prediction_path)
 checks = {
     # New score jobs accept only the strict v2 provenance contract. Existing
     # immutable v1 P2 artifacts remain available to read-only comparators via
@@ -181,7 +209,7 @@ checks = {
     ),
     "prediction_report_hash": (
         ((generation.get("provenance") or {}).get("output_h5ad") or {}).get("sha256")
-        == sha256_file(prediction_path)
+        == prediction_sha256
     ),
     "spec_receipt_hash": (
         ((verification.get("provenance") or {}).get("spec") or {}).get("sha256")
@@ -193,7 +221,7 @@ checks = {
     ),
     "prediction_receipt_hash": (
         ((verification.get("provenance") or {}).get("prediction_h5ad") or {}).get("sha256")
-        == sha256_file(prediction_path)
+        == prediction_sha256
     ),
     "verification_checks": bool(verification.get("checks"))
     and all(value is True for value in verification["checks"].values())
@@ -204,6 +232,13 @@ failed = [name for name, passed in checks.items() if not passed]
 if failed:
     raise RuntimeError(f"Candidate pre-score authentication failed: {failed}")
 PY
+
+# Only a candidate that has passed both the transport gate (when required) and
+# the strict generator gate may now gain access to the scorer-only truth.
+if [[ ! -r "$SEALED_TRUTH" ]]; then
+  echo "Missing sealed scorer input: $SEALED_TRUTH" >&2
+  exit 3
+fi
 
 mkdir -p "$SCORE_DIR"
 "$PYTHON_BIN" scripts/prepare_public_scoring_views.py \

@@ -204,3 +204,39 @@ The implementation enforces the following policy:
 - Report direct target overlap separately from embedding-based extrapolation.
 - Run the complete scorer-aligned validation suite before allocating multi-GPU
   training or a submission quota.
+
+## VCC 2025 H1 processed release acquired 2026-09-09
+
+Source: `gs://arc-institute-virtual-cell-atlas/virtual-cell-challenge/2025/`.
+Destination: project-relative `vcc_2025_h1/`, fully Git-ignored. The processed
+count-matrix release described by [Arc](https://github.com/ArcInstitute/arc-virtual-cell-atlas/tree/main/virtual-cell-challenge)
+was acquired with `--billing-project vcc-dataset` after the user's Marketplace
+and zero-prior-usage confirmation. No existing support files were overwritten.
+
+Seven exact-generation objects total **34,362,325,889 bytes**: the three H5ADs,
+their three `pert_counts_*.csv` tables, and `gene_names.csv`. All passed upstream
+CRC32C and available upstream MD5 checks; local SHA-256 was recorded. The large
+H5ADs are composite GCS objects without an upstream MD5, so their independently
+computed local MD5 is informational, not an upstream-authentication claim.
+
+| Matrix | Pinned GCS generation | Bytes | Local SHA-256 |
+| --- | --- | ---: | --- |
+| `train/adata_Training.h5ad` | `1765904883947296` | 15,482,497,461 | `a09977104fefb622368ca74b50c9d3c1e891733e6c83db07acfca49b0219c02b` |
+| `validation/adata_Validation.h5ad` | `1765905029341737` | 6,928,967,541 | `376f0bab27d9f22e00dfd888668d3602006d035edc182721c378f4802c77bfe1` |
+| `test/adata_Test.h5ad` | `1765905295402700` | 11,950,739,168 | `ba5ce66729e4c8e50b6f147c7d73d3f9f28f76c91fa43ff33e3f6bc2ed831f03` |
+
+Complete seven-file checksums/generations are in
+`vcc_2025_h1/acquisition_complete.json`, SHA-256
+`6e01022c48a682e381d907ebb4fb8ef7f781ef99f3a11550528bbec2efd90d7b`.
+The acquisition plan SHA-256 is
+`93c8f811bee27aa9c61c7b5c9b36f313bfb1118f6254a2324e35687b729a9b8e`.
+No FASTQs were downloaded: 42 excluded raw files would add 5,810,226,748,327 bytes
+and exceed the confirmed 2 TB allowance. See [the cost controls](GCP_H1_SETUP.md).
+
+Acquisition verified bytes only, not expression scale, biological QC, eligible
+training rows or gene overlap. Before opening X/layers, register a new row/split
+manifest preserving the 741 global V7 target exclusions and reserved contexts.
+Deduplicate against the older H1 `competition_train.h5` support subset; neither
+the file nor H1-trained model lineage makes H1 an untouched evaluation context.
+The approved GenePT/GO flow route remains public-only and excludes 2026
+challenge-treated cells. No fitting or submission occurred during acquisition.

@@ -135,8 +135,10 @@ try:
     assert int(truth.var["is_state_support"].sum()) == expected_state
     assert controls.uns["public_validation"]["role"] == "controls-only-generator-input"
     assert truth.uns["public_validation"]["role"] == "sealed-scorer-input"
-    assert controls.uns["public_validation"]["sealed_treated_profiles_present"] is False
-    assert truth.uns["public_validation"]["sealed_treated_profiles_present"] is True
+    controls_sealed = controls.uns["public_validation"]["sealed_treated_profiles_present"]
+    truth_sealed = truth.uns["public_validation"]["sealed_treated_profiles_present"]
+    assert isinstance(controls_sealed, (bool, np.bool_)) and not bool(controls_sealed)
+    assert isinstance(truth_sealed, (bool, np.bool_)) and bool(truth_sealed)
     control_positions = controls.obs["source_cell_index"].to_numpy(dtype=np.int64)
     truth_control_rows = np.flatnonzero(
         truth.obs["target_gene"].astype(str).to_numpy() == "non-targeting"

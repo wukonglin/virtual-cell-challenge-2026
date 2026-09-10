@@ -80,6 +80,20 @@ class PublicScoringViewTests(unittest.TestCase):
                 "r",
                 role="sealed-scorer-input",
             ).write_h5ad(truth)
+            round_tripped_controls = ad.read_h5ad(controls)
+            round_tripped_truth = ad.read_h5ad(truth)
+            self.assertIsInstance(
+                round_tripped_controls.uns["public_validation"][
+                    "sealed_treated_profiles_present"
+                ],
+                np.bool_,
+            )
+            self.assertIsInstance(
+                round_tripped_truth.uns["public_validation"][
+                    "sealed_treated_profiles_present"
+                ],
+                np.bool_,
+            )
             common.write_text("gene_name\ng2\ng0\n", encoding="utf-8")
             common.with_suffix(".json").write_text(
                 json.dumps(

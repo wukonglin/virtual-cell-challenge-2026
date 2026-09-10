@@ -1,0 +1,47 @@
+{
+  "axes": {
+    "cells_per_target": 400,
+    "contexts": 1,
+    "genes": 18533,
+    "targets": 300
+  },
+  "context": "HepG2",
+  "evaluation_policy": {
+    "absolute_tolerance": 1e-12,
+    "best_individual_seed_selection_allowed": false,
+    "fallback_tag": "state_sm_anvil_reconstructed_hepg2_seed42_v1",
+    "held_target_gate": "all_evaluable_metrics_non_regression",
+    "individual_scores_role": "seed_variance_diagnostic_only",
+    "primary_baseline_tag": "state_sm_anvil_reconstructed_hepg2_seed42_v1",
+    "primary_candidate_tag": "state_sm_anvil_reconstructed_hepg2_uniform4_mean_v1",
+    "primary_gate": "all_and_direct_mse_nmae_reach_non_regression_and_pds_or_jaccard_strict_improvement",
+    "public_score_opens_after_ensemble_materialization": true
+  },
+  "firewall": {
+    "challenge_leaderboard_used_for_selection": false,
+    "sealed_treated_profiles_read": false,
+    "source_selection_uses_metrics": false
+  },
+  "lineage": "anvil-portable-reconstruction-v2-correlated-not-historical-p4",
+  "method": {
+    "integerization": "per-cell-largest-remainder",
+    "name": "cellwise-uniform-count-mean",
+    "tie_break": "cyclic-gene-rotation-v1",
+    "tie_break_seed": 20260901,
+    "weights": "uniform"
+  },
+  "output_tag": "state_sm_anvil_reconstructed_hepg2_uniform4_mean_v1",
+  "schema": "vcc-state-seed-ensemble-plan-v1",
+  "selection_policy": {
+    "all_registered_sources_required": true,
+    "best_public_score_seed_selection_allowed": false,
+    "failed_integrity_source_exclusion_allowed": false,
+    "missing_source_fallback_allowed": false
+  },
+  "source_tags": [
+    "state_sm_anvil_reconstructed_hepg2_seed42_v1",
+    "state_sm_anvil_reconstructed_hepg2_seed20260901_v1",
+    "state_sm_anvil_reconstructed_hepg2_seed20260902_v1",
+    "state_sm_anvil_reconstructed_hepg2_seed20260903_v1"
+  ]
+}

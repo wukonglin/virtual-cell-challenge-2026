@@ -1,0 +1,2 @@
+# Install in .venv-vcc-download; no changes to the training environments.
+google-crc32c==1.8.0

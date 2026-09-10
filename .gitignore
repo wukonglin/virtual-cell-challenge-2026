@@ -27,6 +27,7 @@ dataset/*
 !dataset/README.md
 external/
 Pengpeng/
+/vcc_2025_h1/
 
 # Generated model and submission artifacts
 artifacts/*
@@ -74,3 +75,8 @@ vcc-*.err
 core.*
 *.tmp
 *.part
+
+# W&B local run buffers and journals (sync deliberately; never commit)
+wandb/
+.wandb/
+.venv-tracking.install.lock

@@ -99,6 +99,13 @@ class PublicStateResidualTests(unittest.TestCase):
                 "sealed_treated_profiles_present": False,
             }
             data.write_h5ad(path)
+            round_tripped = ad.read_h5ad(path)
+            self.assertIsInstance(
+                round_tripped.uns["public_validation"][
+                    "sealed_treated_profiles_present"
+                ],
+                np.bool_,
+            )
             with self.assertRaisesRegex(RuntimeError, "non-integer"):
                 read_control_statistics(
                     path,
@@ -109,6 +116,14 @@ class PublicStateResidualTests(unittest.TestCase):
 
             data.X = sp.csr_matrix(np.asarray([[1, 2]], dtype=np.int32))
             data.write_h5ad(path)
+            genes, _, _, cells, _, _ = read_control_statistics(
+                path,
+                chunk_size=1,
+                expected_context="HepG2",
+                require_public_role=True,
+            )
+            self.assertEqual(genes, ["g0", "g1"])
+            self.assertEqual(cells, 1)
             with self.assertRaisesRegex(RuntimeError, "requested context"):
                 read_control_statistics(
                     path,

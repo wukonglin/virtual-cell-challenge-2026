@@ -233,6 +233,20 @@ class PublicCandidateV6ContractTests(unittest.TestCase):
                 module.sha256_file(Path(directory) / "generate.py"),
             )
 
+    def test_controls_firewall_accepts_round_tripped_numpy_boolean(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            args = self._inputs(Path(directory))
+            round_tripped = ad.read_h5ad(args.controls_h5ad)
+            self.assertIsInstance(
+                round_tripped.uns["public_validation"][
+                    "sealed_treated_profiles_present"
+                ],
+                np.bool_,
+            )
+            genes, cells = module.validate_controls(args.controls_h5ad, args.context)
+            self.assertEqual(cells, 400)
+            self.assertEqual(len(genes), 301)
+
     def test_plan_rejects_helper_outside_generator_import_directory(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -1,0 +1,20 @@
+{
+  "anchor_version": "vcc2026-valA-r4+vcc2026-valB-r4+vcc2026-valC-r4",
+  "checked_at": "2026-09-10T19:48:37.346182+00:00",
+  "de_score": null,
+  "entry_id": "0ivHnDQV8wi5WQH14o2b",
+  "mae_score": null,
+  "model_name": "GO_context_flow_v10_exploratory",
+  "panel_id": "vcc2026-val-1",
+  "partition": "val",
+  "pert_score": null,
+  "rank": 589,
+  "score_avg": -0.06402252994606115,
+  "score_fid": -0.28615245372524145,
+  "score_jac": -0.06447729870746306,
+  "score_mse": 0,
+  "score_nmae": -0.02754696883178635,
+  "score_pds": 0.0014949020105450145,
+  "score_reach": -0.007453360422421081,
+  "status": "published"
+}

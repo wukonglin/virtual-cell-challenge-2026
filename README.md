@@ -2,6 +2,36 @@
 
 Private team repository for reproducible zero-shot CRISPRi perturbation-response modeling in the [2026 Virtual Cell Challenge](https://virtualcellchallenge.org/).
 
+## Current development status — 2026-09-10
+
+The active research route is **GO/GenePT target features + matched-control context
+features → public CRISPRi flow pretraining → public-only post-training**. Challenge
+treated cells remain excluded from fitting and context construction.
+
+- **GO flow v10 completed and submitted.** Six public-source/conditioning fits
+  completed 3,600 optimizer steps. Nonnegative count generation and official
+  packaging succeeded; the published overall score is **-0.06402253**. Public
+  held-target MSE was worse than unchanged controls in both sources, so this is
+  an exploratory result, not an improved model. See the
+  [v10 report](docs/PUBLIC_AUXILIARY_V10_RESULTS_20260910.md) and
+  [sanitized server receipt](results/go_context_flow_v10/submission.json).
+- **GenePT v11 features are prepared, not trained.** Source-fit-only transforms,
+  missing-feature flags, duplicate-vector quarantine, and masked/shuffled controls
+  have been replayed. Filtered coverage is 774/787 requested targets, including
+  297/300 official targets. See the
+  [feature report](docs/GENEPT_NUMERIC_V11_RESULTS_20260910.md) and
+  [proposed experiment](docs/GENEPT_GO_FLOW_V11_DRAFT_20260910.md).
+- **Feng post-training and PromoterAI ablations remain pending.** They are not
+  included in the submitted model. W&B recorded v10 locally in offline mode;
+  these records are not a synced cloud dashboard.
+
+Start with the [route log](docs/PUBLIC_CRISPRI_FLOW_V1.md) and
+[environment guide](requirements/README.md). Historical execution contracts bind
+exact code, inputs, and hardware; a fresh checkout is not authorization to rerun
+them on arbitrary nodes. Use allocated compute nodes for workloads, never a
+cluster login/head node. Credentials, datasets, model weights, private upload
+state, and W&B run directories are deliberately excluded from Git.
+
 ## Objective
 
 For each anonymous cell context and CRISPRi target, predict a distribution of post-perturbation single-cell raw counts. The validation contract is:
@@ -46,6 +76,7 @@ cells to a count-summed pseudobulk profile or to a Wilcoxon rank-sum DE table. S
 | 2026-08-31 21:40 | STATE prediction | Legacy receipt | `-0.0059348511` | `-0.0055136863` | `0.0000000000` | `-0.0301199063` | `-0.0294264274` | `-0.0467352548` | `0.0761861680` | `278` | [`JbDxq7SJV2wI0DWlIREn`](results/state_direct_v0/submission.json) |
 | 2026-09-01 03:30 | V4 | Current team | `-0.0501571428` | `0.0309523426` | `0.0000000000` | `0.0028402571` | `-0.2933153459` | `-0.0441675259` | `0.0027474151` | `334` | [`jUKnSMYeYJaOCyOXJ4mc`](results/v4/submission.json) |
 | 2026-09-01 14:45 | STATE weights v1 | Current team | `-0.0059348511` | `-0.0055136863` | `0.0000000000` | `-0.0301199063` | `-0.0294264274` | `-0.0467352548` | `0.0761861680` | `298` | [`OYBJARG6NeWPgONA3AXl`](https://github.com/wukonglin/virtual-cell-challenge-2026/blob/submission/state-weights-v1/results/state_weights_v1/submission.json) |
+| 2026-09-10 (result checked 19:48 UTC) | GO_context_flow_v10_exploratory | Current team | `-0.0640225299` | `0.0014949020` | `0.0000000000` | `-0.0644772987` | `-0.0275469688` | `-0.2861524537` | `-0.0074533604` | `589` | [`0ivHnDQV8wi5WQH14o2b`](results/go_context_flow_v10/submission.json) |
 
 The August 24 row predates the repository, so its component scores, entry ID,
 model name, and artifact hash are unknown. A later dashboard screenshot showed

@@ -118,6 +118,16 @@ class PublicValidationDataIntegrationTests(unittest.TestCase):
 
             controls = ad.read_h5ad(controls_path)
             truth = ad.read_h5ad(truth_path)
+            controls_sealed = controls.uns["public_validation"][
+                "sealed_treated_profiles_present"
+            ]
+            truth_sealed = truth.uns["public_validation"][
+                "sealed_treated_profiles_present"
+            ]
+            self.assertIsInstance(controls_sealed, np.bool_)
+            self.assertIsInstance(truth_sealed, np.bool_)
+            self.assertFalse(bool(controls_sealed))
+            self.assertTrue(bool(truth_sealed))
             self.assertEqual(controls.shape, (2, 3))
             self.assertEqual(truth.shape, (4, 3))
             self.assertEqual(controls.var_names.tolist(), ["g0", "g1", "T1"])

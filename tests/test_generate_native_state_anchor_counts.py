@@ -119,6 +119,25 @@ class ControlsFirewallTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "non-control rows"):
             validate_controls_contract(controls, support_genes=["g0", "g2"])
 
+    def test_round_tripped_numpy_boolean_is_accepted_but_integer_zero_is_not(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "controls.h5ad"
+            self.controls().write_h5ad(path)
+            controls = ad.read_h5ad(path)
+            self.assertIsInstance(
+                controls.uns["public_validation"]["sealed_treated_profiles_present"],
+                np.bool_,
+            )
+            context, genes = validate_controls_contract(
+                controls, expected_context="HepG2", support_genes=["g0", "g2"]
+            )
+            self.assertEqual(context, "HepG2")
+            self.assertEqual(genes, ["g0", "g1", "g2"])
+
+            controls.uns["public_validation"]["sealed_treated_profiles_present"] = 0
+            with self.assertRaisesRegex(RuntimeError, "declares sealed treated profiles"):
+                validate_controls_contract(controls, support_genes=["g0", "g2"])
+
     def test_sealed_role_is_rejected_before_expression_is_used(self) -> None:
         controls = self.controls()
         controls.uns["public_validation"]["role"] = "sealed-scorer-input"

@@ -338,8 +338,10 @@ def validate_controls_contract(
     require(isinstance(firewall, dict), "Controls H5AD lacks public_validation metadata")
     require(firewall.get("schema") == DATA_SCHEMA, "Bad controls data schema")
     require(firewall.get("role") == CONTROL_ROLE, "H5AD is not a generator controls input")
+    sealed_profiles_present = firewall.get("sealed_treated_profiles_present")
     require(
-        firewall.get("sealed_treated_profiles_present") is False,
+        isinstance(sealed_profiles_present, (bool, np.bool_))
+        and not bool(sealed_profiles_present),
         "Controls H5AD declares sealed treated profiles",
     )
     require({"context", "target_gene"}.issubset(controls.obs.columns), "Controls obs is incomplete")

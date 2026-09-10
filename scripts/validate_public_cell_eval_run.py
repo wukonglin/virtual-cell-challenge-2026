@@ -10,8 +10,10 @@ It binds those semantics to the scorer sidecars and pinned software identity.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.metadata
 import json
+import os
 import subprocess
 import tomllib
 from pathlib import Path
@@ -21,8 +23,6 @@ import cell_eval2
 import numpy as np
 import pandas as pd
 
-from generate_state_direct_counts import atomic_write_json
-from infer_state_effect_prior import describe_file, require
 from public_candidate_v6_contract import (
     SPEC_SCHEMA,
     VERIFICATION_SCHEMA,
@@ -56,6 +56,49 @@ VIEWS_PROVENANCE_FIELDS = {
     "prediction",
     "sealed_truth",
 }
+
+
+def require(condition: bool, message: str) -> None:
+    """Raise a scorer-contract error without importing the GPU runtime."""
+
+    if not condition:
+        raise RuntimeError(message)
+
+
+def sha256_file(path: Path, chunk_size: int = 8 << 20) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while block := handle.read(chunk_size):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def describe_file(path: Path, *, hash_file: bool = True) -> dict[str, Any]:
+    """Describe a scorer artifact without importing PyTorch-backed helpers."""
+
+    metadata = path.stat()
+    result: dict[str, Any] = {
+        "path": str(path.resolve()),
+        "size_bytes": metadata.st_size,
+        "mtime_ns": metadata.st_mtime_ns,
+    }
+    if hash_file:
+        result["sha256"] = sha256_file(path)
+    return result
+
+
+def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    """Preserve the existing atomic scoring-receipt publication semantics."""
+
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        with temporary.open("w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
 def _same_descriptor(left: Any, right: Any, label: str) -> None:

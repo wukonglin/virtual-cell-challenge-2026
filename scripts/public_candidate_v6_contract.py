@@ -13,6 +13,7 @@ truth.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -26,17 +27,8 @@ import anndata as ad
 import numpy as np
 import pandas as pd
 
-from generate_state_direct_counts import validate_selection_manifest
-from infer_state_effect_prior import (
-    CONTROL_LABEL,
-    EXPECTED_SUPPORT_GENES,
-    describe_file,
-    read_single_column,
-    require,
-    sha256_file,
-)
-
-
+CONTROL_LABEL = "non-targeting"
+EXPECTED_SUPPORT_GENES = 18_080
 LEGACY_SPEC_SCHEMA = "vcc-public-candidate-spec-v1"
 SPEC_SCHEMA = "vcc-public-candidate-spec-v2"
 VERIFICATION_SCHEMA = "vcc-public-candidate-verification-v1"
@@ -99,6 +91,51 @@ LOCKED_GENERATOR_CONFIGURATION: dict[str, Any] = {
     "max_genes_per_cell": 5900,
     "integerization": "largest-remainder",
 }
+
+
+def require(condition: bool, message: str) -> None:
+    """Raise a candidate-contract error without importing the GPU runtime."""
+
+    if not condition:
+        raise RuntimeError(message)
+
+
+def sha256_file(path: Path, chunk_size: int = 8 << 20) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while block := handle.read(chunk_size):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def describe_file(path: Path, *, hash_file: bool = True) -> dict[str, Any]:
+    """Describe an artifact without importing PyTorch-backed model helpers."""
+
+    metadata = path.stat()
+    result: dict[str, Any] = {
+        "path": str(path.resolve()),
+        "size_bytes": metadata.st_size,
+        "mtime_ns": metadata.st_mtime_ns,
+    }
+    if hash_file:
+        result["sha256"] = sha256_file(path)
+    return result
+
+
+def read_single_column(path: Path, preferred_column: str | None = None) -> list[str]:
+    frame = pd.read_csv(path, dtype=str, keep_default_na=False)
+    if preferred_column is not None and preferred_column in frame.columns:
+        values = frame[preferred_column].tolist()
+    elif frame.shape[1] == 1:
+        values = frame.iloc[:, 0].tolist()
+        if preferred_column is None:
+            values.insert(0, str(frame.columns[0]))
+    else:
+        raise RuntimeError(f"Expected one column in {path}, found {frame.shape[1]}")
+    values = [str(value) for value in values]
+    require(values and all(values), f"Empty value found in {path}")
+    require(len(values) == len(set(values)), f"Duplicate values found in {path}")
+    return values
 
 
 def authenticate_state_source(
@@ -381,10 +418,12 @@ def validate_controls(path: Path, context: str) -> tuple[list[str], int]:
     data = ad.read_h5ad(path, backed="r")
     try:
         contract = data.uns.get("public_validation", {})
+        sealed_profiles_present = contract.get("sealed_treated_profiles_present")
         require(
             contract.get("schema") == DATA_SCHEMA
             and contract.get("role") == "controls-only-generator-input"
-            and contract.get("sealed_treated_profiles_present") is False,
+            and isinstance(sealed_profiles_present, (bool, np.bool_))
+            and not bool(sealed_profiles_present),
             "Controls lack the generator-only firewall role",
         )
         require({"context", "target_gene"}.issubset(data.obs.columns), "Controls obs is incomplete")
@@ -522,6 +561,11 @@ def build_spec(args: argparse.Namespace) -> dict[str, Any]:
     support_genes = read_single_column(args.support_genes)
     require(len(support_genes) == EXPECTED_SUPPORT_GENES, "Unexpected STATE support size")
     checkpoint_sha256 = sha256_file(args.checkpoint)
+    # Selection authentication needs PyTorch only while planning a generated
+    # model candidate. Keeping this import local lets the CPU-only scorer reuse
+    # the strict JSON/provenance validators without installing the GPU stack.
+    from generate_state_direct_counts import validate_selection_manifest
+
     selection = validate_selection_manifest(
         args.selection_json, args.checkpoint, checkpoint_sha256
     )

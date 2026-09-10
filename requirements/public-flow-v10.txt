@@ -1,0 +1,8 @@
+# Direct dependencies observed in the Python 3.11 public-flow runtime.
+# Install in a fresh environment; do not mutate authenticated prior runtimes.
+# Not a transitive lock or authorization to execute a registered experiment.
+-r model.txt
+h5py==3.16.0
+threadpoolctl==3.6.0
+wandb==0.19.11
+pytest==9.1.1

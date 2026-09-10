@@ -181,10 +181,12 @@ def read_control_statistics(
             )
         if require_public_role:
             contract = data.uns.get("public_validation", {})
+            sealed_profiles_present = contract.get("sealed_treated_profiles_present")
             require(
                 contract.get("schema") == DATA_SCHEMA
                 and contract.get("role") == "controls-only-generator-input"
-                and contract.get("sealed_treated_profiles_present") is False,
+                and isinstance(sealed_profiles_present, (bool, np.bool_))
+                and not bool(sealed_profiles_present),
                 "Controls lack the controls-only firewall role",
             )
         genes = data.var_names.astype(str).tolist()

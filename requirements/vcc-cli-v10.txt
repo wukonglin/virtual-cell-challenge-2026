@@ -1,0 +1,3 @@
+# Separate Python 3.11 official-client environment for v10 packaging/upload.
+# Preserve requirements/vcc-cli.txt for the historical 0.1.0 baseline.
+vcc-cli==0.2.0
