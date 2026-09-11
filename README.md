@@ -77,6 +77,7 @@ cells to a count-summed pseudobulk profile or to a Wilcoxon rank-sum DE table. S
 | 2026-09-01 03:30 | V4 | Current team | `-0.0501571428` | `0.0309523426` | `0.0000000000` | `0.0028402571` | `-0.2933153459` | `-0.0441675259` | `0.0027474151` | `334` | [`jUKnSMYeYJaOCyOXJ4mc`](results/v4/submission.json) |
 | 2026-09-01 14:45 | STATE weights v1 | Current team | `-0.0059348511` | `-0.0055136863` | `0.0000000000` | `-0.0301199063` | `-0.0294264274` | `-0.0467352548` | `0.0761861680` | `298` | [`OYBJARG6NeWPgONA3AXl`](https://github.com/wukonglin/virtual-cell-challenge-2026/blob/submission/state-weights-v1/results/state_weights_v1/submission.json) |
 | 2026-09-10 (result checked 19:48 UTC) | GO_context_flow_v10_exploratory | Current team | `-0.0640225299` | `0.0014949020` | `0.0000000000` | `-0.0644772987` | `-0.0275469688` | `-0.2861524537` | `-0.0074533604` | `589` | [`0ivHnDQV8wi5WQH14o2b`](results/go_context_flow_v10/submission.json) |
+| 2026-09-11 00:38 | TransPert pw05 | Current team | `0.0434256067` | `0.2609355767` | `0.0000000000` | `-0.0133613888` | `0.0446512050` | `-0.0963960183` | `0.0647242658` | `417` | [`asT16iuxJgjNkMiaeXU8`](results/transpert_pw05/submission.json) |
 
 The August 24 row predates the repository, so its component scores, entry ID,
 model name, and artifact hash are unknown. A later dashboard screenshot showed

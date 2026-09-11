@@ -1,0 +1,72 @@
+{
+  "model": "transpert_pw05",
+  "model_name_submitted": "transpert unshrunk pw0.5 m0.0898",
+  "entry_id": "asT16iuxJgjNkMiaeXU8",
+  "status": "published",
+  "submission_date_utc": "2026-09-11T00:38:15.300700Z",
+  "partition": "val",
+  "panel_id": "vcc2026-val-1",
+  "anchor_version": "vcc2026-valA-r4+vcc2026-valB-r4+vcc2026-valC-r4",
+  "is_final": false,
+  "receipt_rank": 417,
+  "overall": 0.04342560673511914,
+  "scaled_components": {
+    "score_pds": 0.2609355767351552,
+    "score_mse": 0.0,
+    "score_nmae": 0.04465120497690356,
+    "score_fid": -0.0963960183208042,
+    "score_reach": 0.06472426577470614,
+    "score_jac": -0.013361388755245876
+  },
+  "raw_aggregates": {
+    "pds_cosine": 0.6178966926793015,
+    "expr_mse_unbiased_capped_norm": 3.811041924780969,
+    "de_wilcoxon_lfc_nmae": 0.9736299683004721,
+    "de_wilcoxon_direction_fidelity_yield_raw": 0.4838178783625024,
+    "de_wilcoxon_direction_reach_raw": 0.13629355481176195,
+    "de_wilcoxon_sig_jaccard": 0.02550205968784984
+  },
+  "configuration": {
+    "model_family": "transpert",
+    "shrink": false,
+    "lfc_power": 0.5,
+    "target_mean_lfc": 0.0898,
+    "alpha": 1.0,
+    "temperature": 0.05,
+    "min_cells": 20,
+    "cells_per_pert": 400,
+    "max_scale": 64.0,
+    "seed": 0,
+    "contexts": "A,B,C"
+  },
+  "artifact": {
+    "shape": [360000, 18533],
+    "n_perturbations": 300,
+    "cells_per_context": {"A": 120000, "B": 120000, "C": 120000},
+    "stored_entries": 2052757743,
+    "stored_entries_cap": 4750000000,
+    "entries_per_cell": 5702.1,
+    "max_counts_per_cell": 53052.0,
+    "vcc_sha256": "dabf317725d431bb5fc39fa4a34beab5005023563cc61e25f7451c63b06957cb"
+  },
+  "source_provenance": {
+    "origin_repository": "VC2026 working tree (ShaowenJCornell)",
+    "origin_commit": "095e16d",
+    "source_sha256": {
+      "run_model.py": "ee33a747ba6999672f2c9f4009dfb91d029b2820e216773f8ff85ab9556cc4e1",
+      "vccx/__init__.py": "c17f62c0acc830d38564cb21d07406cf54774241aeaf7f6fff240f2dc4eddd75",
+      "vccx/models.py": "4fa01f1efdbb81a1d28f06b9a7de9d59191935399074903e5b1e2ce21150b16a",
+      "vccx/emit.py": "90053baa432c29500a629716da816c0ca5f34b46f4b7979b5676c05235723307",
+      "vccx/refdata.py": "83f04b83285a4c6f9073d3e6159632002974e4b920948a62e3249ee45d8dc62f"
+    }
+  },
+  "hardware": {
+    "build_host": "cbsuvlaminck6.biohpc.cornell.edu",
+    "accelerator": "none (CPU only)",
+    "slurm_job_id": null,
+    "build_seconds": 195.5,
+    "note": "No GPU or scheduler was used. The model is a weighted lookup over public reference tables plus two scalar transforms."
+  },
+  "worst_context_result": null,
+  "worst_context_note": "The official API returns aggregate scores only; per-context components for A/B/C are not exposed by /api/cli/submissions/{id}/status."
+}
